@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Grist Map Widget – Catégories configurables</title>
+  <title>Grist Map Widget – Auto-détection catégories</title>
   <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
   <style>
     @import url('https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&display=swap');
@@ -59,7 +59,9 @@
       border: 1px solid rgba(255,255,255,0.08);
       border-radius: 16px;
       padding: 22px 24px 18px;
-      width: 320px;
+      width: 340px;
+      max-height: calc(100vh - 90px);
+      overflow-y: auto;
       box-shadow: 0 12px 48px rgba(0,0,0,0.5);
       display: none;
       animation: slideIn 0.25s ease;
@@ -75,106 +77,122 @@
       font-size: 14px;
       font-weight: 700;
       color: #fff;
-      margin-bottom: 16px;
+      margin-bottom: 6px;
       letter-spacing: 0.2px;
     }
 
-    .setting-row {
+    .settings-panel .subtitle {
+      font-size: 11.5px;
+      color: #6b7280;
+      margin-bottom: 16px;
+      line-height: 1.5;
+    }
+
+    /* ─── Ligne catégorie ─── */
+    .cat-row {
       display: flex;
       align-items: center;
       gap: 10px;
-      margin-bottom: 10px;
+      margin-bottom: 8px;
+      padding: 8px 10px;
+      border-radius: 10px;
+      background: rgba(255,255,255,0.03);
+      border: 1px solid rgba(255,255,255,0.05);
+      transition: background 0.15s;
+    }
+    .cat-row:hover {
+      background: rgba(255,255,255,0.06);
     }
 
-    .setting-row .color-preview {
-      width: 28px;
-      height: 28px;
+    .cat-color-btn {
+      width: 30px;
+      height: 30px;
       border-radius: 8px;
       flex-shrink: 0;
-      border: 2px solid rgba(255,255,255,0.12);
+      border: 2.5px solid rgba(255,255,255,0.15);
+      cursor: pointer;
+      transition: transform 0.15s, border-color 0.15s;
+      position: relative;
+    }
+    .cat-color-btn:hover {
+      transform: scale(1.1);
+      border-color: rgba(255,255,255,0.35);
     }
 
-    .setting-row input[type="text"] {
+    .cat-name {
       flex: 1;
-      background: rgba(255,255,255,0.06);
-      border: 1px solid rgba(255,255,255,0.1);
-      border-radius: 8px;
-      padding: 8px 12px;
-      color: #e4e4e7;
-      font-family: 'DM Sans', sans-serif;
       font-size: 13px;
-      outline: none;
-      transition: border-color 0.2s;
-    }
-    .setting-row input[type="text"]:focus {
-      border-color: rgba(255,255,255,0.25);
-    }
-    .setting-row input[type="text"]::placeholder {
-      color: #555;
+      font-weight: 500;
+      color: #e4e4e7;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
     }
 
-    .setting-row .remove-btn {
+    .cat-count {
+      font-size: 11px;
+      color: #6b7280;
+      background: rgba(255,255,255,0.05);
+      padding: 3px 8px;
+      border-radius: 6px;
+      flex-shrink: 0;
+      font-weight: 600;
+    }
+
+    /* ─── Color Picker Dropdown ─── */
+    .color-picker-dropdown {
+      position: absolute;
+      z-index: 1200;
+      background: rgba(20, 22, 30, 0.96);
+      backdrop-filter: blur(16px);
+      border: 1px solid rgba(255,255,255,0.1);
+      border-radius: 12px;
+      padding: 10px;
+      display: flex;
+      gap: 6px;
+      flex-wrap: wrap;
+      width: 180px;
+      box-shadow: 0 8px 32px rgba(0,0,0,0.5);
+      animation: fadeIn 0.15s ease;
+    }
+
+    @keyframes fadeIn {
+      from { opacity: 0; transform: scale(0.95); }
+      to   { opacity: 1; transform: scale(1); }
+    }
+
+    .color-picker-dropdown .color-option {
       width: 28px;
       height: 28px;
       border-radius: 7px;
-      border: 1px solid rgba(255,255,255,0.08);
-      background: transparent;
-      color: #6b7280;
-      font-size: 15px;
       cursor: pointer;
+      border: 2px solid transparent;
+      transition: transform 0.12s, border-color 0.12s;
+    }
+    .color-picker-dropdown .color-option:hover {
+      transform: scale(1.15);
+      border-color: rgba(255,255,255,0.5);
+    }
+    .color-picker-dropdown .color-option.selected {
+      border-color: #fff;
+      box-shadow: 0 0 8px rgba(255,255,255,0.3);
+    }
+
+    .color-picker-dropdown .no-color {
+      width: 28px;
+      height: 28px;
+      border-radius: 7px;
+      cursor: pointer;
+      border: 2px dashed rgba(255,255,255,0.2);
       display: flex;
       align-items: center;
       justify-content: center;
-      transition: all 0.15s;
-      flex-shrink: 0;
-    }
-    .setting-row .remove-btn:hover {
-      color: #f87171;
-      border-color: rgba(248,113,113,0.3);
-      background: rgba(248,113,113,0.08);
-    }
-
-    .add-btn {
-      display: inline-flex;
-      align-items: center;
-      gap: 6px;
-      margin-top: 6px;
-      padding: 7px 14px;
-      border-radius: 8px;
-      border: 1px dashed rgba(255,255,255,0.15);
-      background: transparent;
-      color: #9ca3af;
-      font-family: 'DM Sans', sans-serif;
-      font-size: 12px;
-      font-weight: 500;
-      cursor: pointer;
-      transition: all 0.15s;
-    }
-    .add-btn:hover {
-      color: #e4e4e7;
-      border-color: rgba(255,255,255,0.3);
-      background: rgba(255,255,255,0.04);
-    }
-    .add-btn:disabled {
-      opacity: 0.3;
-      cursor: not-allowed;
-    }
-
-    .settings-hint {
-      margin-top: 14px;
-      padding-top: 12px;
-      border-top: 1px solid rgba(255,255,255,0.06);
-      font-size: 11px;
+      font-size: 14px;
       color: #6b7280;
-      line-height: 1.6;
+      transition: transform 0.12s;
     }
-
-    .settings-hint code {
-      background: rgba(255,255,255,0.07);
-      padding: 1px 5px;
-      border-radius: 4px;
-      font-size: 10.5px;
-      color: #a5b4fc;
+    .color-picker-dropdown .no-color:hover {
+      transform: scale(1.15);
     }
 
     /* ─── Légende flottante ─── */
@@ -196,6 +214,7 @@
       box-shadow: 0 8px 32px rgba(0,0,0,0.4);
       flex-wrap: wrap;
     }
+    .legend:empty { display: none; }
 
     .legend-item {
       display: flex;
@@ -217,6 +236,8 @@
       z-index: 1000;
       display: flex;
       gap: 8px;
+      flex-wrap: wrap;
+      justify-content: flex-end;
     }
 
     .stat-chip {
@@ -272,6 +293,11 @@
       letter-spacing: 0.3px;
       margin-bottom: 4px;
     }
+
+    /* ─── Scrollbar ─── */
+    .settings-panel::-webkit-scrollbar { width: 5px; }
+    .settings-panel::-webkit-scrollbar-track { background: transparent; }
+    .settings-panel::-webkit-scrollbar-thumb { background: rgba(255,255,255,0.1); border-radius: 4px; }
   </style>
 </head>
 <body>
@@ -281,13 +307,9 @@
   <button class="settings-toggle" id="settingsToggle" title="Configurer les catégories">⚙</button>
 
   <div class="settings-panel" id="settingsPanel">
-    <h3>Catégories &amp; Couleurs</h3>
+    <h3>Catégories détectées</h3>
+    <div class="subtitle">Cliquez sur le rond de couleur pour changer la couleur associée à chaque valeur.</div>
     <div id="categoriesList"></div>
-    <button class="add-btn" id="addCategoryBtn" title="Ajouter une catégorie">+ Ajouter</button>
-    <div class="settings-hint">
-      Saisissez les valeurs de la colonne <code>Type</code> de votre table Grist.<br>
-      La couleur pastel est attribuée automatiquement.
-    </div>
   </div>
 
   <div class="legend" id="legend"></div>
@@ -297,42 +319,61 @@
   <script src="https://docs.getgrist.com/grist-plugin-api.js"></script>
 
   <script>
-    // ─── Palette pastel douce (5 couleurs) ───
+    // ─── Palette pastel douce ───
     const PASTEL_PALETTE = [
-      { fill: '#93c5fd', glow: 'rgba(147,197,253,0.45)', bg: 'rgba(147,197,253,0.15)', text: '#93c5fd' },
-      { fill: '#fda4af', glow: 'rgba(253,164,175,0.45)', bg: 'rgba(253,164,175,0.15)', text: '#fda4af' },
-      { fill: '#86efac', glow: 'rgba(134,239,172,0.45)', bg: 'rgba(134,239,172,0.15)', text: '#86efac' },
-      { fill: '#fcd34d', glow: 'rgba(252,211,77,0.40)',  bg: 'rgba(252,211,77,0.15)',  text: '#fcd34d' },
-      { fill: '#c4b5fd', glow: 'rgba(196,181,253,0.45)', bg: 'rgba(196,181,253,0.15)', text: '#c4b5fd' },
+      { id: 'blue',   fill: '#93c5fd', glow: 'rgba(147,197,253,0.45)', bg: 'rgba(147,197,253,0.15)', text: '#93c5fd', label: 'Bleu' },
+      { id: 'pink',   fill: '#fda4af', glow: 'rgba(253,164,175,0.45)', bg: 'rgba(253,164,175,0.15)', text: '#fda4af', label: 'Rose' },
+      { id: 'green',  fill: '#86efac', glow: 'rgba(134,239,172,0.45)', bg: 'rgba(134,239,172,0.15)', text: '#86efac', label: 'Vert' },
+      { id: 'yellow', fill: '#fcd34d', glow: 'rgba(252,211,77,0.40)',  bg: 'rgba(252,211,77,0.15)',  text: '#fcd34d', label: 'Jaune' },
+      { id: 'violet', fill: '#c4b5fd', glow: 'rgba(196,181,253,0.45)', bg: 'rgba(196,181,253,0.15)', text: '#c4b5fd', label: 'Violet' },
     ];
 
-    const FALLBACK_COLOR = { fill: '#9ca3af', glow: 'rgba(156,163,175,0.3)', bg: 'rgba(156,163,175,0.12)', text: '#9ca3af' };
+    const UNASSIGNED_COLOR = { id: 'none', fill: '#6b7280', glow: 'rgba(107,114,128,0.25)', bg: 'rgba(107,114,128,0.1)', text: '#9ca3af', label: 'Gris' };
 
     // ─── État ───
-    const STORAGE_KEY = 'grist_map_categories';
-    let categories = loadCategories();
+    // mapping : { "valeur_type": "color_id" } — persisté en localStorage
+    const STORAGE_KEY = 'grist_map_color_mapping';
+    let colorMapping = loadMapping();
+    let detectedTypes = [];  // [ { name: "Un formateur", count: 12 }, ... ]
     let lastRecords = [];
+    let openPicker = null;  // référence au picker ouvert
 
-    function loadCategories() {
+    function loadMapping() {
       try {
         const saved = localStorage.getItem(STORAGE_KEY);
         if (saved) return JSON.parse(saved);
       } catch(e) {}
-      return [ { name: 'A' }, { name: 'B' }, { name: 'C' } ];
+      return {};
     }
 
-    function saveCategories() {
-      try { localStorage.setItem(STORAGE_KEY, JSON.stringify(categories)); } catch(e) {}
+    function saveMapping() {
+      try { localStorage.setItem(STORAGE_KEY, JSON.stringify(colorMapping)); } catch(e) {}
     }
 
-    function getColor(i) { return PASTEL_PALETTE[i % PASTEL_PALETTE.length] || FALLBACK_COLOR; }
-
-    function getColorForCat(catName) {
-      const idx = categories.findIndex(c => c.name.toLowerCase() === catName.toLowerCase());
-      return idx >= 0 ? getColor(idx) : FALLBACK_COLOR;
+    function getColorById(id) {
+      return PASTEL_PALETTE.find(c => c.id === id) || UNASSIGNED_COLOR;
     }
 
-    // ─── Carte ───
+    function getColorForType(typeName) {
+      const id = colorMapping[typeName];
+      return id ? getColorById(id) : UNASSIGNED_COLOR;
+    }
+
+    // Auto-assign : attribue les couleurs non utilisées aux types sans couleur
+    function autoAssign() {
+      const usedColors = new Set(Object.values(colorMapping));
+      const available = PASTEL_PALETTE.filter(c => !usedColors.has(c.id));
+      let idx = 0;
+      detectedTypes.forEach(dt => {
+        if (!colorMapping[dt.name] && idx < available.length) {
+          colorMapping[dt.name] = available[idx].id;
+          idx++;
+        }
+      });
+      saveMapping();
+    }
+
+    // ─── Carte Leaflet ───
     const map = L.map('map', { zoomControl: false, attributionControl: true }).setView([46.8, 2.5], 6);
     L.control.zoom({ position: 'topright' }).addTo(map);
     L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png', {
@@ -341,8 +382,8 @@
 
     let markersLayer = L.layerGroup().addTo(map);
 
-    function createIcon(catName) {
-      const c = getColorForCat(catName);
+    function createIcon(typeName) {
+      const c = getColorForType(typeName);
       return L.divIcon({
         html: `<svg width="28" height="28" viewBox="0 0 28 28" xmlns="http://www.w3.org/2000/svg">
           <circle cx="14" cy="14" r="12" fill="${c.fill}" stroke="rgba(255,255,255,0.85)" stroke-width="2.5" filter="drop-shadow(0 0 6px ${c.glow})"/>
@@ -354,7 +395,7 @@
 
     function popupHTML(rec) {
       const type = (rec.Type || rec.type || '?').toString();
-      const c = getColorForCat(type);
+      const c = getColorForType(type);
       const name = rec.Nom || rec.nom || rec.Name || rec.name || '';
       const desc = rec.Description || rec.description || '';
       let h = `<div class="popup-type-badge" style="background:${c.bg};color:${c.text}">${type}</div>`;
@@ -366,37 +407,53 @@
 
     // ─── Légende ───
     function renderLegend() {
-      document.getElementById('legend').innerHTML = categories
-        .filter(c => c.name.trim())
-        .map((c, i) => {
-          const col = getColor(i);
+      const el = document.getElementById('legend');
+      el.innerHTML = detectedTypes
+        .filter(dt => colorMapping[dt.name])
+        .map(dt => {
+          const c = getColorForType(dt.name);
           return `<div class="legend-item">
-            <div class="legend-dot" style="background:${col.fill};box-shadow:0 0 8px ${col.glow}"></div>
-            <span>${c.name}</span>
+            <div class="legend-dot" style="background:${c.fill};box-shadow:0 0 8px ${c.glow}"></div>
+            <span>${dt.name}</span>
           </div>`;
         }).join('');
     }
 
     // ─── Stats ───
-    function updateStats(records) {
-      const counts = {};
-      categories.forEach(c => { if(c.name.trim()) counts[c.name.toLowerCase()] = 0; });
-      records.forEach(r => {
-        const t = (r.Type || r.type || '').toString().toLowerCase();
-        if (counts.hasOwnProperty(t)) counts[t]++;
-      });
-      document.getElementById('stats-bar').innerHTML = categories
-        .filter(c => c.name.trim() && (counts[c.name.toLowerCase()] || 0) > 0)
-        .map((c, i) => {
-          const col = getColor(i);
+    function updateStats() {
+      document.getElementById('stats-bar').innerHTML = detectedTypes
+        .filter(dt => dt.count > 0)
+        .map(dt => {
+          const c = getColorForType(dt.name);
           return `<div class="stat-chip">
-            <div class="dot" style="background:${col.fill};box-shadow:0 0 6px ${col.glow}"></div>
-            ${counts[c.name.toLowerCase()]}
+            <div class="dot" style="background:${c.fill};box-shadow:0 0 6px ${c.glow}"></div>
+            ${dt.count}
           </div>`;
         }).join('');
     }
 
-    // ─── Rendu ───
+    // ─── Détection des types uniques ───
+    function detectTypes(records) {
+      const counts = {};
+      records.forEach(r => {
+        const t = (r.Type || r.type || '').toString().trim();
+        if (!t) return;
+        counts[t] = (counts[t] || 0) + 1;
+      });
+      detectedTypes = Object.entries(counts)
+        .sort((a, b) => b[1] - a[1])
+        .map(([name, count]) => ({ name, count }));
+
+      // Nettoyer les mappings obsolètes
+      const validNames = new Set(detectedTypes.map(d => d.name));
+      Object.keys(colorMapping).forEach(k => {
+        if (!validNames.has(k)) delete colorMapping[k];
+      });
+
+      autoAssign();
+    }
+
+    // ─── Rendu points ───
     function renderPoints(records) {
       markersLayer.clearLayers();
       const valid = [];
@@ -412,83 +469,166 @@
         valid.push(r);
       });
       if (valid.length > 0) map.fitBounds(L.latLngBounds(valid.map(r => [r._lat, r._lng])).pad(0.15));
-      updateStats(valid);
+      updateStats();
     }
 
     function refreshAll() {
       renderLegend();
+      renderSettingsRows();
       if (lastRecords.length > 0) renderPoints(lastRecords);
     }
 
-    // ─── Settings Panel ───
+    // ─── Color Picker ───
+    function closePicker() {
+      if (openPicker) { openPicker.remove(); openPicker = null; }
+    }
+
+    function showColorPicker(typeName, anchorEl) {
+      closePicker();
+
+      const picker = document.createElement('div');
+      picker.className = 'color-picker-dropdown';
+
+      const rect = anchorEl.getBoundingClientRect();
+      picker.style.left = (rect.right + 8) + 'px';
+      picker.style.top = rect.top + 'px';
+
+      // Couleurs de la palette
+      PASTEL_PALETTE.forEach(color => {
+        const opt = document.createElement('div');
+        opt.className = 'color-option' + (colorMapping[typeName] === color.id ? ' selected' : '');
+        opt.style.background = color.fill;
+        opt.style.boxShadow = `0 0 8px ${color.glow}`;
+        opt.title = color.label;
+        opt.addEventListener('click', (e) => {
+          e.stopPropagation();
+          // Libérer cette couleur si un autre type l'utilise
+          Object.keys(colorMapping).forEach(k => {
+            if (colorMapping[k] === color.id && k !== typeName) {
+              delete colorMapping[k];
+            }
+          });
+          colorMapping[typeName] = color.id;
+          saveMapping();
+          closePicker();
+          refreshAll();
+        });
+        picker.appendChild(opt);
+      });
+
+      // Option "aucune couleur"
+      const noColor = document.createElement('div');
+      noColor.className = 'no-color';
+      noColor.innerHTML = '∅';
+      noColor.title = 'Aucune couleur';
+      noColor.addEventListener('click', (e) => {
+        e.stopPropagation();
+        delete colorMapping[typeName];
+        saveMapping();
+        closePicker();
+        refreshAll();
+      });
+      picker.appendChild(noColor);
+
+      document.body.appendChild(picker);
+      openPicker = picker;
+
+      // Ajuster si sort de l'écran
+      requestAnimationFrame(() => {
+        const pr = picker.getBoundingClientRect();
+        if (pr.right > window.innerWidth) {
+          picker.style.left = (rect.left - pr.width - 8) + 'px';
+        }
+        if (pr.bottom > window.innerHeight) {
+          picker.style.top = (window.innerHeight - pr.height - 12) + 'px';
+        }
+      });
+    }
+
+    // Fermer picker au clic extérieur
+    document.addEventListener('click', (e) => {
+      if (openPicker && !openPicker.contains(e.target) && !e.target.classList.contains('cat-color-btn')) {
+        closePicker();
+      }
+    });
+
+    // ─── Panneau Settings ───
     const settingsToggle = document.getElementById('settingsToggle');
     const settingsPanel = document.getElementById('settingsPanel');
 
-    settingsToggle.addEventListener('click', () => settingsPanel.classList.toggle('open'));
-    map.on('click', () => settingsPanel.classList.remove('open'));
+    settingsToggle.addEventListener('click', (e) => {
+      e.stopPropagation();
+      settingsPanel.classList.toggle('open');
+      closePicker();
+    });
+
+    map.on('click', () => {
+      settingsPanel.classList.remove('open');
+      closePicker();
+    });
 
     function renderSettingsRows() {
       const list = document.getElementById('categoriesList');
       list.innerHTML = '';
-      categories.forEach((cat, i) => {
-        const col = getColor(i);
+
+      if (detectedTypes.length === 0) {
+        list.innerHTML = '<div style="color:#6b7280;font-size:12px;padding:8px 0;">Aucune donnée détectée. Vérifiez le mapping de la colonne Type dans Grist.</div>';
+        return;
+      }
+
+      detectedTypes.forEach(dt => {
+        const c = getColorForType(dt.name);
         const row = document.createElement('div');
-        row.className = 'setting-row';
-        row.innerHTML = `
-          <div class="color-preview" style="background:${col.fill};box-shadow:0 0 8px ${col.glow}"></div>
-          <input type="text" value="${cat.name}" placeholder="Catégorie ${i + 1}" data-index="${i}" />
-          <button class="remove-btn" data-index="${i}" title="Supprimer">×</button>`;
+        row.className = 'cat-row';
+
+        const colorBtn = document.createElement('div');
+        colorBtn.className = 'cat-color-btn';
+        colorBtn.style.background = c.fill;
+        colorBtn.style.boxShadow = `0 0 8px ${c.glow}`;
+        colorBtn.addEventListener('click', (e) => {
+          e.stopPropagation();
+          showColorPicker(dt.name, colorBtn);
+        });
+
+        const nameEl = document.createElement('div');
+        nameEl.className = 'cat-name';
+        nameEl.textContent = dt.name;
+        nameEl.title = dt.name;
+
+        const countEl = document.createElement('div');
+        countEl.className = 'cat-count';
+        countEl.textContent = dt.count;
+
+        row.appendChild(colorBtn);
+        row.appendChild(nameEl);
+        row.appendChild(countEl);
         list.appendChild(row);
       });
-
-      list.querySelectorAll('input[type="text"]').forEach(input => {
-        input.addEventListener('input', e => {
-          categories[parseInt(e.target.dataset.index)].name = e.target.value;
-          saveCategories();
-          refreshAll();
-        });
-      });
-
-      list.querySelectorAll('.remove-btn').forEach(btn => {
-        btn.addEventListener('click', e => {
-          if (categories.length <= 1) return;
-          categories.splice(parseInt(e.target.dataset.index), 1);
-          saveCategories();
-          renderSettingsRows();
-          refreshAll();
-        });
-      });
-
-      document.getElementById('addCategoryBtn').disabled = categories.length >= 5;
     }
 
-    document.getElementById('addCategoryBtn').addEventListener('click', () => {
-      if (categories.length >= 5) return;
-      categories.push({ name: '' });
-      saveCategories();
-      renderSettingsRows();
-      refreshAll();
-      const inputs = document.querySelectorAll('#categoriesList input[type="text"]');
-      if (inputs.length) inputs[inputs.length - 1].focus();
-    });
-
-    // ─── Démo ───
+    // ─── Données de démonstration ───
     const DEMO_DATA = [
-      { Nom: "Paris – Siège", Latitude: 48.8566, Longitude: 2.3522, Type: "A", Description: "Bureau principal" },
-      { Nom: "Lyon – Agence", Latitude: 45.7640, Longitude: 4.8357, Type: "B", Description: "Agence régionale" },
-      { Nom: "Marseille – Dépôt", Latitude: 43.2965, Longitude: 5.3698, Type: "C", Description: "Entrepôt logistique" },
-      { Nom: "Bordeaux", Latitude: 44.8378, Longitude: -0.5792, Type: "A", Description: "Antenne commerciale" },
-      { Nom: "Lille – Nord", Latitude: 50.6292, Longitude: 3.0573, Type: "B", Description: "Point relais" },
-      { Nom: "Strasbourg", Latitude: 48.5734, Longitude: 7.7521, Type: "C", Description: "Bureau Est" },
-      { Nom: "Toulouse", Latitude: 43.6047, Longitude: 1.4442, Type: "A", Description: "Centre technique" },
-      { Nom: "Nantes", Latitude: 47.2184, Longitude: -1.5536, Type: "B", Description: "Agence Ouest" },
-      { Nom: "Rennes", Latitude: 48.1173, Longitude: -1.6778, Type: "C", Description: "Point de contact" },
-      { Nom: "Montpellier", Latitude: 43.6108, Longitude: 3.8767, Type: "A", Description: "Bureau Sud" },
-      { Nom: "Grenoble", Latitude: 45.1885, Longitude: 5.7245, Type: "B", Description: "Labo R&D" },
-      { Nom: "Clermont-Ferrand", Latitude: 45.7772, Longitude: 3.0870, Type: "C", Description: "Centre support" },
+      { Nom: "Paris – Siège",       Latitude: 48.8566, Longitude: 2.3522,  Type: "Un formateur",         Description: "Bureau principal" },
+      { Nom: "Lyon – Agence",       Latitude: 45.7640, Longitude: 4.8357,  Type: "Plusieurs formateurs", Description: "Agence régionale" },
+      { Nom: "Marseille – Dépôt",   Latitude: 43.2965, Longitude: 5.3698,  Type: "Aucun formateur",      Description: "Entrepôt logistique" },
+      { Nom: "Bordeaux",            Latitude: 44.8378, Longitude: -0.5792, Type: "Un formateur",         Description: "Antenne commerciale" },
+      { Nom: "Lille – Nord",        Latitude: 50.6292, Longitude: 3.0573,  Type: "Un candidat",          Description: "Point relais" },
+      { Nom: "Strasbourg",          Latitude: 48.5734, Longitude: 7.7521,  Type: "Aucun formateur",      Description: "Bureau Est" },
+      { Nom: "Toulouse",            Latitude: 43.6047, Longitude: 1.4442,  Type: "Un formateur",         Description: "Centre technique" },
+      { Nom: "Nantes",              Latitude: 47.2184, Longitude: -1.5536, Type: "Plusieurs formateurs", Description: "Agence Ouest" },
+      { Nom: "Rennes",              Latitude: 48.1173, Longitude: -1.6778, Type: "Aucun formateur",      Description: "Point de contact" },
+      { Nom: "Montpellier",         Latitude: 43.6108, Longitude: 3.8767,  Type: "Un formateur",         Description: "Bureau Sud" },
+      { Nom: "Grenoble",            Latitude: 45.1885, Longitude: 5.7245,  Type: "Un candidat",          Description: "Labo R&D" },
+      { Nom: "Clermont-Ferrand",    Latitude: 45.7772, Longitude: 3.0870,  Type: "Plusieurs formateurs", Description: "Centre support" },
     ];
 
     // ─── Grist ───
+    function processRecords(records) {
+      lastRecords = records;
+      detectTypes(records);
+      refreshAll();
+    }
+
     function tryGristInit() {
       if (typeof grist === 'undefined') { showDemo(); return; }
       try {
@@ -503,17 +643,17 @@
           ]
         });
         grist.onRecords(function(records) {
-          if (records && records.length > 0) { lastRecords = records; refreshAll(); }
+          if (records && records.length > 0) processRecords(records);
           else showDemo();
         });
       } catch (e) { showDemo(); }
     }
 
-    function showDemo() { lastRecords = DEMO_DATA; refreshAll(); }
+    function showDemo() {
+      processRecords(DEMO_DATA);
+    }
 
     // ─── Init ───
-    renderSettingsRows();
-    renderLegend();
     tryGristInit();
   </script>
 </body>
