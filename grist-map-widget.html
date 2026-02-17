@@ -1,0 +1,520 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Grist Map Widget – Catégories configurables</title>
+  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+  <style>
+    @import url('https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&display=swap');
+
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+
+    body {
+      font-family: 'DM Sans', sans-serif;
+      background: #0f1117;
+      color: #e4e4e7;
+      height: 100vh;
+      display: flex;
+      flex-direction: column;
+      overflow: hidden;
+    }
+
+    #map { flex: 1; z-index: 1; }
+
+    /* ─── Bouton Settings ─── */
+    .settings-toggle {
+      position: absolute;
+      top: 12px;
+      left: 12px;
+      z-index: 1100;
+      width: 40px;
+      height: 40px;
+      border-radius: 11px;
+      border: 1px solid rgba(255,255,255,0.1);
+      background: rgba(15, 17, 23, 0.88);
+      backdrop-filter: blur(14px);
+      color: #e4e4e7;
+      font-size: 18px;
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      transition: background 0.2s, transform 0.2s;
+      box-shadow: 0 4px 16px rgba(0,0,0,0.35);
+    }
+    .settings-toggle:hover {
+      background: rgba(30, 33, 44, 0.95);
+      transform: scale(1.05);
+    }
+
+    /* ─── Panneau Settings ─── */
+    .settings-panel {
+      position: absolute;
+      top: 60px;
+      left: 12px;
+      z-index: 1100;
+      background: rgba(15, 17, 23, 0.94);
+      backdrop-filter: blur(20px);
+      border: 1px solid rgba(255,255,255,0.08);
+      border-radius: 16px;
+      padding: 22px 24px 18px;
+      width: 320px;
+      box-shadow: 0 12px 48px rgba(0,0,0,0.5);
+      display: none;
+      animation: slideIn 0.25s ease;
+    }
+    .settings-panel.open { display: block; }
+
+    @keyframes slideIn {
+      from { opacity: 0; transform: translateY(-8px); }
+      to   { opacity: 1; transform: translateY(0); }
+    }
+
+    .settings-panel h3 {
+      font-size: 14px;
+      font-weight: 700;
+      color: #fff;
+      margin-bottom: 16px;
+      letter-spacing: 0.2px;
+    }
+
+    .setting-row {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      margin-bottom: 10px;
+    }
+
+    .setting-row .color-preview {
+      width: 28px;
+      height: 28px;
+      border-radius: 8px;
+      flex-shrink: 0;
+      border: 2px solid rgba(255,255,255,0.12);
+    }
+
+    .setting-row input[type="text"] {
+      flex: 1;
+      background: rgba(255,255,255,0.06);
+      border: 1px solid rgba(255,255,255,0.1);
+      border-radius: 8px;
+      padding: 8px 12px;
+      color: #e4e4e7;
+      font-family: 'DM Sans', sans-serif;
+      font-size: 13px;
+      outline: none;
+      transition: border-color 0.2s;
+    }
+    .setting-row input[type="text"]:focus {
+      border-color: rgba(255,255,255,0.25);
+    }
+    .setting-row input[type="text"]::placeholder {
+      color: #555;
+    }
+
+    .setting-row .remove-btn {
+      width: 28px;
+      height: 28px;
+      border-radius: 7px;
+      border: 1px solid rgba(255,255,255,0.08);
+      background: transparent;
+      color: #6b7280;
+      font-size: 15px;
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      transition: all 0.15s;
+      flex-shrink: 0;
+    }
+    .setting-row .remove-btn:hover {
+      color: #f87171;
+      border-color: rgba(248,113,113,0.3);
+      background: rgba(248,113,113,0.08);
+    }
+
+    .add-btn {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      margin-top: 6px;
+      padding: 7px 14px;
+      border-radius: 8px;
+      border: 1px dashed rgba(255,255,255,0.15);
+      background: transparent;
+      color: #9ca3af;
+      font-family: 'DM Sans', sans-serif;
+      font-size: 12px;
+      font-weight: 500;
+      cursor: pointer;
+      transition: all 0.15s;
+    }
+    .add-btn:hover {
+      color: #e4e4e7;
+      border-color: rgba(255,255,255,0.3);
+      background: rgba(255,255,255,0.04);
+    }
+    .add-btn:disabled {
+      opacity: 0.3;
+      cursor: not-allowed;
+    }
+
+    .settings-hint {
+      margin-top: 14px;
+      padding-top: 12px;
+      border-top: 1px solid rgba(255,255,255,0.06);
+      font-size: 11px;
+      color: #6b7280;
+      line-height: 1.6;
+    }
+
+    .settings-hint code {
+      background: rgba(255,255,255,0.07);
+      padding: 1px 5px;
+      border-radius: 4px;
+      font-size: 10.5px;
+      color: #a5b4fc;
+    }
+
+    /* ─── Légende flottante ─── */
+    .legend {
+      position: absolute;
+      bottom: 24px;
+      left: 24px;
+      z-index: 1000;
+      background: rgba(15, 17, 23, 0.88);
+      backdrop-filter: blur(16px);
+      border: 1px solid rgba(255,255,255,0.08);
+      border-radius: 14px;
+      padding: 14px 20px;
+      display: flex;
+      gap: 18px;
+      align-items: center;
+      font-size: 13px;
+      font-weight: 500;
+      box-shadow: 0 8px 32px rgba(0,0,0,0.4);
+      flex-wrap: wrap;
+    }
+
+    .legend-item {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+
+    .legend-dot {
+      width: 14px;
+      height: 14px;
+      border-radius: 50%;
+    }
+
+    /* ─── Stats ─── */
+    .stats-bar {
+      position: absolute;
+      top: 12px;
+      right: 12px;
+      z-index: 1000;
+      display: flex;
+      gap: 8px;
+    }
+
+    .stat-chip {
+      background: rgba(15, 17, 23, 0.85);
+      backdrop-filter: blur(12px);
+      border: 1px solid rgba(255,255,255,0.08);
+      border-radius: 10px;
+      padding: 8px 14px;
+      font-size: 12px;
+      font-weight: 600;
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      box-shadow: 0 4px 16px rgba(0,0,0,0.3);
+    }
+
+    .stat-chip .dot {
+      width: 8px;
+      height: 8px;
+      border-radius: 50%;
+    }
+
+    /* ─── Popups Leaflet ─── */
+    .leaflet-popup-content-wrapper {
+      background: rgba(15, 17, 23, 0.92) !important;
+      backdrop-filter: blur(16px);
+      border: 1px solid rgba(255,255,255,0.1) !important;
+      border-radius: 12px !important;
+      color: #e4e4e7 !important;
+      font-family: 'DM Sans', sans-serif !important;
+      box-shadow: 0 8px 32px rgba(0,0,0,0.5) !important;
+    }
+
+    .leaflet-popup-content {
+      margin: 12px 16px !important;
+      font-size: 13px !important;
+      line-height: 1.6 !important;
+    }
+
+    .leaflet-popup-content strong { color: #fff; font-weight: 600; }
+
+    .leaflet-popup-tip {
+      background: rgba(15, 17, 23, 0.92) !important;
+      border: 1px solid rgba(255,255,255,0.1) !important;
+    }
+
+    .popup-type-badge {
+      display: inline-block;
+      padding: 2px 10px;
+      border-radius: 6px;
+      font-size: 11px;
+      font-weight: 700;
+      letter-spacing: 0.3px;
+      margin-bottom: 4px;
+    }
+  </style>
+</head>
+<body>
+
+  <div id="map"></div>
+
+  <button class="settings-toggle" id="settingsToggle" title="Configurer les catégories">⚙</button>
+
+  <div class="settings-panel" id="settingsPanel">
+    <h3>Catégories &amp; Couleurs</h3>
+    <div id="categoriesList"></div>
+    <button class="add-btn" id="addCategoryBtn" title="Ajouter une catégorie">+ Ajouter</button>
+    <div class="settings-hint">
+      Saisissez les valeurs de la colonne <code>Type</code> de votre table Grist.<br>
+      La couleur pastel est attribuée automatiquement.
+    </div>
+  </div>
+
+  <div class="legend" id="legend"></div>
+  <div class="stats-bar" id="stats-bar"></div>
+
+  <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+  <script src="https://docs.getgrist.com/grist-plugin-api.js"></script>
+
+  <script>
+    // ─── Palette pastel douce (5 couleurs) ───
+    const PASTEL_PALETTE = [
+      { fill: '#93c5fd', glow: 'rgba(147,197,253,0.45)', bg: 'rgba(147,197,253,0.15)', text: '#93c5fd' },
+      { fill: '#fda4af', glow: 'rgba(253,164,175,0.45)', bg: 'rgba(253,164,175,0.15)', text: '#fda4af' },
+      { fill: '#86efac', glow: 'rgba(134,239,172,0.45)', bg: 'rgba(134,239,172,0.15)', text: '#86efac' },
+      { fill: '#fcd34d', glow: 'rgba(252,211,77,0.40)',  bg: 'rgba(252,211,77,0.15)',  text: '#fcd34d' },
+      { fill: '#c4b5fd', glow: 'rgba(196,181,253,0.45)', bg: 'rgba(196,181,253,0.15)', text: '#c4b5fd' },
+    ];
+
+    const FALLBACK_COLOR = { fill: '#9ca3af', glow: 'rgba(156,163,175,0.3)', bg: 'rgba(156,163,175,0.12)', text: '#9ca3af' };
+
+    // ─── État ───
+    const STORAGE_KEY = 'grist_map_categories';
+    let categories = loadCategories();
+    let lastRecords = [];
+
+    function loadCategories() {
+      try {
+        const saved = localStorage.getItem(STORAGE_KEY);
+        if (saved) return JSON.parse(saved);
+      } catch(e) {}
+      return [ { name: 'A' }, { name: 'B' }, { name: 'C' } ];
+    }
+
+    function saveCategories() {
+      try { localStorage.setItem(STORAGE_KEY, JSON.stringify(categories)); } catch(e) {}
+    }
+
+    function getColor(i) { return PASTEL_PALETTE[i % PASTEL_PALETTE.length] || FALLBACK_COLOR; }
+
+    function getColorForCat(catName) {
+      const idx = categories.findIndex(c => c.name.toLowerCase() === catName.toLowerCase());
+      return idx >= 0 ? getColor(idx) : FALLBACK_COLOR;
+    }
+
+    // ─── Carte ───
+    const map = L.map('map', { zoomControl: false, attributionControl: true }).setView([46.8, 2.5], 6);
+    L.control.zoom({ position: 'topright' }).addTo(map);
+    L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png', {
+      attribution: '&copy; OSM &copy; CARTO', subdomains: 'abcd', maxZoom: 19
+    }).addTo(map);
+
+    let markersLayer = L.layerGroup().addTo(map);
+
+    function createIcon(catName) {
+      const c = getColorForCat(catName);
+      return L.divIcon({
+        html: `<svg width="28" height="28" viewBox="0 0 28 28" xmlns="http://www.w3.org/2000/svg">
+          <circle cx="14" cy="14" r="12" fill="${c.fill}" stroke="rgba(255,255,255,0.85)" stroke-width="2.5" filter="drop-shadow(0 0 6px ${c.glow})"/>
+          <circle cx="14" cy="14" r="5" fill="rgba(255,255,255,0.8)"/>
+        </svg>`,
+        className: '', iconSize: [28, 28], iconAnchor: [14, 14], popupAnchor: [0, -16]
+      });
+    }
+
+    function popupHTML(rec) {
+      const type = (rec.Type || rec.type || '?').toString();
+      const c = getColorForCat(type);
+      const name = rec.Nom || rec.nom || rec.Name || rec.name || '';
+      const desc = rec.Description || rec.description || '';
+      let h = `<div class="popup-type-badge" style="background:${c.bg};color:${c.text}">${type}</div>`;
+      if (name) h += `<br><strong>${name}</strong>`;
+      if (desc) h += `<br><span style="color:#9ca3af">${desc}</span>`;
+      h += `<br><span style="color:#6b7280;font-size:11px">${rec._lat?.toFixed(5)}, ${rec._lng?.toFixed(5)}</span>`;
+      return h;
+    }
+
+    // ─── Légende ───
+    function renderLegend() {
+      document.getElementById('legend').innerHTML = categories
+        .filter(c => c.name.trim())
+        .map((c, i) => {
+          const col = getColor(i);
+          return `<div class="legend-item">
+            <div class="legend-dot" style="background:${col.fill};box-shadow:0 0 8px ${col.glow}"></div>
+            <span>${c.name}</span>
+          </div>`;
+        }).join('');
+    }
+
+    // ─── Stats ───
+    function updateStats(records) {
+      const counts = {};
+      categories.forEach(c => { if(c.name.trim()) counts[c.name.toLowerCase()] = 0; });
+      records.forEach(r => {
+        const t = (r.Type || r.type || '').toString().toLowerCase();
+        if (counts.hasOwnProperty(t)) counts[t]++;
+      });
+      document.getElementById('stats-bar').innerHTML = categories
+        .filter(c => c.name.trim() && (counts[c.name.toLowerCase()] || 0) > 0)
+        .map((c, i) => {
+          const col = getColor(i);
+          return `<div class="stat-chip">
+            <div class="dot" style="background:${col.fill};box-shadow:0 0 6px ${col.glow}"></div>
+            ${counts[c.name.toLowerCase()]}
+          </div>`;
+        }).join('');
+    }
+
+    // ─── Rendu ───
+    function renderPoints(records) {
+      markersLayer.clearLayers();
+      const valid = [];
+      records.forEach(r => {
+        const lat = parseFloat(r.Latitude || r.latitude || r.Lat || r.lat);
+        const lng = parseFloat(r.Longitude || r.longitude || r.Lng || r.lng || r.Lon || r.lon);
+        if (isNaN(lat) || isNaN(lng)) return;
+        r._lat = lat; r._lng = lng;
+        const type = (r.Type || r.type || '').toString();
+        L.marker([lat, lng], { icon: createIcon(type) })
+          .bindPopup(popupHTML(r), { maxWidth: 260 })
+          .addTo(markersLayer);
+        valid.push(r);
+      });
+      if (valid.length > 0) map.fitBounds(L.latLngBounds(valid.map(r => [r._lat, r._lng])).pad(0.15));
+      updateStats(valid);
+    }
+
+    function refreshAll() {
+      renderLegend();
+      if (lastRecords.length > 0) renderPoints(lastRecords);
+    }
+
+    // ─── Settings Panel ───
+    const settingsToggle = document.getElementById('settingsToggle');
+    const settingsPanel = document.getElementById('settingsPanel');
+
+    settingsToggle.addEventListener('click', () => settingsPanel.classList.toggle('open'));
+    map.on('click', () => settingsPanel.classList.remove('open'));
+
+    function renderSettingsRows() {
+      const list = document.getElementById('categoriesList');
+      list.innerHTML = '';
+      categories.forEach((cat, i) => {
+        const col = getColor(i);
+        const row = document.createElement('div');
+        row.className = 'setting-row';
+        row.innerHTML = `
+          <div class="color-preview" style="background:${col.fill};box-shadow:0 0 8px ${col.glow}"></div>
+          <input type="text" value="${cat.name}" placeholder="Catégorie ${i + 1}" data-index="${i}" />
+          <button class="remove-btn" data-index="${i}" title="Supprimer">×</button>`;
+        list.appendChild(row);
+      });
+
+      list.querySelectorAll('input[type="text"]').forEach(input => {
+        input.addEventListener('input', e => {
+          categories[parseInt(e.target.dataset.index)].name = e.target.value;
+          saveCategories();
+          refreshAll();
+        });
+      });
+
+      list.querySelectorAll('.remove-btn').forEach(btn => {
+        btn.addEventListener('click', e => {
+          if (categories.length <= 1) return;
+          categories.splice(parseInt(e.target.dataset.index), 1);
+          saveCategories();
+          renderSettingsRows();
+          refreshAll();
+        });
+      });
+
+      document.getElementById('addCategoryBtn').disabled = categories.length >= 5;
+    }
+
+    document.getElementById('addCategoryBtn').addEventListener('click', () => {
+      if (categories.length >= 5) return;
+      categories.push({ name: '' });
+      saveCategories();
+      renderSettingsRows();
+      refreshAll();
+      const inputs = document.querySelectorAll('#categoriesList input[type="text"]');
+      if (inputs.length) inputs[inputs.length - 1].focus();
+    });
+
+    // ─── Démo ───
+    const DEMO_DATA = [
+      { Nom: "Paris – Siège", Latitude: 48.8566, Longitude: 2.3522, Type: "A", Description: "Bureau principal" },
+      { Nom: "Lyon – Agence", Latitude: 45.7640, Longitude: 4.8357, Type: "B", Description: "Agence régionale" },
+      { Nom: "Marseille – Dépôt", Latitude: 43.2965, Longitude: 5.3698, Type: "C", Description: "Entrepôt logistique" },
+      { Nom: "Bordeaux", Latitude: 44.8378, Longitude: -0.5792, Type: "A", Description: "Antenne commerciale" },
+      { Nom: "Lille – Nord", Latitude: 50.6292, Longitude: 3.0573, Type: "B", Description: "Point relais" },
+      { Nom: "Strasbourg", Latitude: 48.5734, Longitude: 7.7521, Type: "C", Description: "Bureau Est" },
+      { Nom: "Toulouse", Latitude: 43.6047, Longitude: 1.4442, Type: "A", Description: "Centre technique" },
+      { Nom: "Nantes", Latitude: 47.2184, Longitude: -1.5536, Type: "B", Description: "Agence Ouest" },
+      { Nom: "Rennes", Latitude: 48.1173, Longitude: -1.6778, Type: "C", Description: "Point de contact" },
+      { Nom: "Montpellier", Latitude: 43.6108, Longitude: 3.8767, Type: "A", Description: "Bureau Sud" },
+      { Nom: "Grenoble", Latitude: 45.1885, Longitude: 5.7245, Type: "B", Description: "Labo R&D" },
+      { Nom: "Clermont-Ferrand", Latitude: 45.7772, Longitude: 3.0870, Type: "C", Description: "Centre support" },
+    ];
+
+    // ─── Grist ───
+    function tryGristInit() {
+      if (typeof grist === 'undefined') { showDemo(); return; }
+      try {
+        grist.ready({
+          requiredAccess: 'read table',
+          columns: [
+            { name: 'Latitude', type: 'Numeric' },
+            { name: 'Longitude', type: 'Numeric' },
+            { name: 'Type', type: 'Text' },
+            { name: 'Nom', type: 'Text', optional: true },
+            { name: 'Description', type: 'Text', optional: true },
+          ]
+        });
+        grist.onRecords(function(records) {
+          if (records && records.length > 0) { lastRecords = records; refreshAll(); }
+          else showDemo();
+        });
+      } catch (e) { showDemo(); }
+    }
+
+    function showDemo() { lastRecords = DEMO_DATA; refreshAll(); }
+
+    // ─── Init ───
+    renderSettingsRows();
+    renderLegend();
+    tryGristInit();
+  </script>
+</body>
+</html>
