@@ -78,7 +78,6 @@
       font-weight: 700;
       color: #fff;
       margin-bottom: 6px;
-      letter-spacing: 0.2px;
     }
 
     .settings-panel .subtitle {
@@ -88,7 +87,6 @@
       line-height: 1.5;
     }
 
-    /* ─── Ligne catégorie ─── */
     .cat-row {
       display: flex;
       align-items: center;
@@ -100,9 +98,7 @@
       border: 1px solid rgba(255,255,255,0.05);
       transition: background 0.15s;
     }
-    .cat-row:hover {
-      background: rgba(255,255,255,0.06);
-    }
+    .cat-row:hover { background: rgba(255,255,255,0.06); }
 
     .cat-color-btn {
       width: 30px;
@@ -112,7 +108,6 @@
       border: 2.5px solid rgba(255,255,255,0.15);
       cursor: pointer;
       transition: transform 0.15s, border-color 0.15s;
-      position: relative;
     }
     .cat-color-btn:hover {
       transform: scale(1.1);
@@ -191,9 +186,7 @@
       color: #6b7280;
       transition: transform 0.12s;
     }
-    .color-picker-dropdown .no-color:hover {
-      transform: scale(1.15);
-    }
+    .color-picker-dropdown .no-color:hover { transform: scale(1.15); }
 
     /* ─── Légende flottante ─── */
     .legend {
@@ -294,7 +287,6 @@
       margin-bottom: 4px;
     }
 
-    /* ─── Scrollbar ─── */
     .settings-panel::-webkit-scrollbar { width: 5px; }
     .settings-panel::-webkit-scrollbar-track { background: transparent; }
     .settings-panel::-webkit-scrollbar-thumb { background: rgba(255,255,255,0.1); border-radius: 4px; }
@@ -321,45 +313,34 @@
   <script>
     // ─── Palette pastel douce ───
     const PASTEL_PALETTE = [
-      { id: 'blue',   fill: '#93c5fd', glow: 'rgba(147,197,253,0.45)', bg: 'rgba(147,197,253,0.15)', text: '#93c5fd', label: 'Bleu' },
-      { id: 'pink',   fill: '#fda4af', glow: 'rgba(253,164,175,0.45)', bg: 'rgba(253,164,175,0.15)', text: '#fda4af', label: 'Rose' },
-      { id: 'green',  fill: '#86efac', glow: 'rgba(134,239,172,0.45)', bg: 'rgba(134,239,172,0.15)', text: '#86efac', label: 'Vert' },
-      { id: 'yellow', fill: '#fcd34d', glow: 'rgba(252,211,77,0.40)',  bg: 'rgba(252,211,77,0.15)',  text: '#fcd34d', label: 'Jaune' },
-      { id: 'violet', fill: '#c4b5fd', glow: 'rgba(196,181,253,0.45)', bg: 'rgba(196,181,253,0.15)', text: '#c4b5fd', label: 'Violet' },
+      { id: 'blue',   fill: '#93c5fd', glow: 'rgba(147,197,253,0.45)', bg: 'rgba(147,197,253,0.15)', text: '#93c5fd' },
+      { id: 'pink',   fill: '#fda4af', glow: 'rgba(253,164,175,0.45)', bg: 'rgba(253,164,175,0.15)', text: '#fda4af' },
+      { id: 'green',  fill: '#86efac', glow: 'rgba(134,239,172,0.45)', bg: 'rgba(134,239,172,0.15)', text: '#86efac' },
+      { id: 'yellow', fill: '#fcd34d', glow: 'rgba(252,211,77,0.40)',  bg: 'rgba(252,211,77,0.15)',  text: '#fcd34d' },
+      { id: 'violet', fill: '#c4b5fd', glow: 'rgba(196,181,253,0.45)', bg: 'rgba(196,181,253,0.15)', text: '#c4b5fd' },
     ];
 
-    const UNASSIGNED_COLOR = { id: 'none', fill: '#6b7280', glow: 'rgba(107,114,128,0.25)', bg: 'rgba(107,114,128,0.1)', text: '#9ca3af', label: 'Gris' };
+    const UNASSIGNED_COLOR = { id: 'none', fill: '#6b7280', glow: 'rgba(107,114,128,0.25)', bg: 'rgba(107,114,128,0.1)', text: '#9ca3af' };
 
     // ─── État ───
-    // mapping : { "valeur_type": "color_id" } — persisté en localStorage
-    const STORAGE_KEY = 'grist_map_color_mapping';
-    let colorMapping = loadMapping();
-    let detectedTypes = [];  // [ { name: "Un formateur", count: 12 }, ... ]
+    const STORAGE_KEY = 'grist_map_color_mapping_v4';
+    let colorMapping = loadMapping();   // { "valeur_type": "color_id" }
+    let detectedTypes = [];             // [ { name, count } ]
     let lastRecords = [];
-    let openPicker = null;  // référence au picker ouvert
+    let columnMapping = {};             // mapping Grist : { Latitude: "real_col_name", ... }
+    let openPicker = null;
 
     function loadMapping() {
-      try {
-        const saved = localStorage.getItem(STORAGE_KEY);
-        if (saved) return JSON.parse(saved);
-      } catch(e) {}
+      try { const s = localStorage.getItem(STORAGE_KEY); if (s) return JSON.parse(s); } catch(e) {}
       return {};
     }
-
     function saveMapping() {
       try { localStorage.setItem(STORAGE_KEY, JSON.stringify(colorMapping)); } catch(e) {}
     }
 
-    function getColorById(id) {
-      return PASTEL_PALETTE.find(c => c.id === id) || UNASSIGNED_COLOR;
-    }
+    function getColorById(id) { return PASTEL_PALETTE.find(c => c.id === id) || UNASSIGNED_COLOR; }
+    function getColorForType(typeName) { return getColorById(colorMapping[typeName] || 'none'); }
 
-    function getColorForType(typeName) {
-      const id = colorMapping[typeName];
-      return id ? getColorById(id) : UNASSIGNED_COLOR;
-    }
-
-    // Auto-assign : attribue les couleurs non utilisées aux types sans couleur
     function autoAssign() {
       const usedColors = new Set(Object.values(colorMapping));
       const available = PASTEL_PALETTE.filter(c => !usedColors.has(c.id));
@@ -371,6 +352,42 @@
         }
       });
       saveMapping();
+    }
+
+    // ─── Helpers pour lire les champs d'un record Grist ───
+    // Grist envoie les données avec les noms de colonnes RÉELS de la table.
+    // Le mapping widget (panneau droit dans Grist) associe nos noms logiques
+    // (Latitude, Longitude, Type, Nom) aux vraies colonnes de la table.
+    // grist.onRecords envoie les données avec les clés = vrais noms de colonnes.
+    // On doit donc utiliser columnMapping pour retrouver la bonne clé.
+
+    function getField(record, logicalName) {
+      // Essayer le nom mappé par Grist
+      const mappedCol = columnMapping[logicalName];
+      if (mappedCol && record[mappedCol] !== undefined) return record[mappedCol];
+      // Fallback : essayer le nom logique directement (mode démo)
+      if (record[logicalName] !== undefined) return record[logicalName];
+      return undefined;
+    }
+
+    function getLatitude(record) {
+      const v = getField(record, 'Latitude');
+      return (v !== undefined) ? parseFloat(v) : NaN;
+    }
+
+    function getLongitude(record) {
+      const v = getField(record, 'Longitude');
+      return (v !== undefined) ? parseFloat(v) : NaN;
+    }
+
+    function getType(record) {
+      const v = getField(record, 'Type');
+      return (v !== undefined && v !== null) ? String(v).trim() : '';
+    }
+
+    function getNom(record) {
+      const v = getField(record, 'Nom');
+      return (v !== undefined && v !== null) ? String(v).trim() : '';
     }
 
     // ─── Carte Leaflet ───
@@ -393,22 +410,20 @@
       });
     }
 
-    function popupHTML(rec) {
-      const type = (rec.Type || rec.type || '?').toString();
+    function popupHTML(record) {
+      const type = getType(record);
+      const nom = getNom(record);
       const c = getColorForType(type);
-      const name = rec.Nom || rec.nom || rec.Name || rec.name || '';
-      const desc = rec.Description || rec.description || '';
-      let h = `<div class="popup-type-badge" style="background:${c.bg};color:${c.text}">${type}</div>`;
-      if (name) h += `<br><strong>${name}</strong>`;
-      if (desc) h += `<br><span style="color:#9ca3af">${desc}</span>`;
-      h += `<br><span style="color:#6b7280;font-size:11px">${rec._lat?.toFixed(5)}, ${rec._lng?.toFixed(5)}</span>`;
-      return h;
+
+      let h = '';
+      if (nom) h += `<strong>${nom}</strong><br>`;
+      if (type) h += `<div class="popup-type-badge" style="background:${c.bg};color:${c.text}">${type}</div>`;
+      return h || '<span style="color:#6b7280">Aucune info</span>';
     }
 
     // ─── Légende ───
     function renderLegend() {
-      const el = document.getElementById('legend');
-      el.innerHTML = detectedTypes
+      document.getElementById('legend').innerHTML = detectedTypes
         .filter(dt => colorMapping[dt.name])
         .map(dt => {
           const c = getColorForType(dt.name);
@@ -436,7 +451,7 @@
     function detectTypes(records) {
       const counts = {};
       records.forEach(r => {
-        const t = (r.Type || r.type || '').toString().trim();
+        const t = getType(r);
         if (!t) return;
         counts[t] = (counts[t] || 0) + 1;
       });
@@ -446,9 +461,7 @@
 
       // Nettoyer les mappings obsolètes
       const validNames = new Set(detectedTypes.map(d => d.name));
-      Object.keys(colorMapping).forEach(k => {
-        if (!validNames.has(k)) delete colorMapping[k];
-      });
+      Object.keys(colorMapping).forEach(k => { if (!validNames.has(k)) delete colorMapping[k]; });
 
       autoAssign();
     }
@@ -458,13 +471,13 @@
       markersLayer.clearLayers();
       const valid = [];
       records.forEach(r => {
-        const lat = parseFloat(r.Latitude || r.latitude || r.Lat || r.lat);
-        const lng = parseFloat(r.Longitude || r.longitude || r.Lng || r.lng || r.Lon || r.lon);
+        const lat = getLatitude(r);
+        const lng = getLongitude(r);
         if (isNaN(lat) || isNaN(lng)) return;
         r._lat = lat; r._lng = lng;
-        const type = (r.Type || r.type || '').toString();
+        const type = getType(r);
         L.marker([lat, lng], { icon: createIcon(type) })
-          .bindPopup(popupHTML(r), { maxWidth: 260 })
+          .bindPopup(popupHTML(r), { maxWidth: 280 })
           .addTo(markersLayer);
         valid.push(r);
       });
@@ -479,34 +492,26 @@
     }
 
     // ─── Color Picker ───
-    function closePicker() {
-      if (openPicker) { openPicker.remove(); openPicker = null; }
-    }
+    function closePicker() { if (openPicker) { openPicker.remove(); openPicker = null; } }
 
     function showColorPicker(typeName, anchorEl) {
       closePicker();
-
       const picker = document.createElement('div');
       picker.className = 'color-picker-dropdown';
-
       const rect = anchorEl.getBoundingClientRect();
       picker.style.left = (rect.right + 8) + 'px';
       picker.style.top = rect.top + 'px';
 
-      // Couleurs de la palette
       PASTEL_PALETTE.forEach(color => {
         const opt = document.createElement('div');
         opt.className = 'color-option' + (colorMapping[typeName] === color.id ? ' selected' : '');
         opt.style.background = color.fill;
         opt.style.boxShadow = `0 0 8px ${color.glow}`;
-        opt.title = color.label;
         opt.addEventListener('click', (e) => {
           e.stopPropagation();
-          // Libérer cette couleur si un autre type l'utilise
+          // Libérer la couleur si prise par un autre type
           Object.keys(colorMapping).forEach(k => {
-            if (colorMapping[k] === color.id && k !== typeName) {
-              delete colorMapping[k];
-            }
+            if (colorMapping[k] === color.id && k !== typeName) delete colorMapping[k];
           });
           colorMapping[typeName] = color.id;
           saveMapping();
@@ -516,7 +521,6 @@
         picker.appendChild(opt);
       });
 
-      // Option "aucune couleur"
       const noColor = document.createElement('div');
       noColor.className = 'no-color';
       noColor.innerHTML = '∅';
@@ -533,23 +537,15 @@
       document.body.appendChild(picker);
       openPicker = picker;
 
-      // Ajuster si sort de l'écran
       requestAnimationFrame(() => {
         const pr = picker.getBoundingClientRect();
-        if (pr.right > window.innerWidth) {
-          picker.style.left = (rect.left - pr.width - 8) + 'px';
-        }
-        if (pr.bottom > window.innerHeight) {
-          picker.style.top = (window.innerHeight - pr.height - 12) + 'px';
-        }
+        if (pr.right > window.innerWidth) picker.style.left = (rect.left - pr.width - 8) + 'px';
+        if (pr.bottom > window.innerHeight) picker.style.top = (window.innerHeight - pr.height - 12) + 'px';
       });
     }
 
-    // Fermer picker au clic extérieur
     document.addEventListener('click', (e) => {
-      if (openPicker && !openPicker.contains(e.target) && !e.target.classList.contains('cat-color-btn')) {
-        closePicker();
-      }
+      if (openPicker && !openPicker.contains(e.target) && !e.target.classList.contains('cat-color-btn')) closePicker();
     });
 
     // ─── Panneau Settings ───
@@ -561,18 +557,14 @@
       settingsPanel.classList.toggle('open');
       closePicker();
     });
-
-    map.on('click', () => {
-      settingsPanel.classList.remove('open');
-      closePicker();
-    });
+    map.on('click', () => { settingsPanel.classList.remove('open'); closePicker(); });
 
     function renderSettingsRows() {
       const list = document.getElementById('categoriesList');
       list.innerHTML = '';
 
       if (detectedTypes.length === 0) {
-        list.innerHTML = '<div style="color:#6b7280;font-size:12px;padding:8px 0;">Aucune donnée détectée. Vérifiez le mapping de la colonne Type dans Grist.</div>';
+        list.innerHTML = '<div style="color:#6b7280;font-size:12px;padding:8px 0;">Aucune catégorie détectée.<br>Vérifiez le mapping de la colonne <b>Type</b> dans les paramètres du widget Grist.</div>';
         return;
       }
 
@@ -585,10 +577,7 @@
         colorBtn.className = 'cat-color-btn';
         colorBtn.style.background = c.fill;
         colorBtn.style.boxShadow = `0 0 8px ${c.glow}`;
-        colorBtn.addEventListener('click', (e) => {
-          e.stopPropagation();
-          showColorPicker(dt.name, colorBtn);
-        });
+        colorBtn.addEventListener('click', (e) => { e.stopPropagation(); showColorPicker(dt.name, colorBtn); });
 
         const nameEl = document.createElement('div');
         nameEl.className = 'cat-name';
@@ -608,21 +597,21 @@
 
     // ─── Données de démonstration ───
     const DEMO_DATA = [
-      { Nom: "Paris – Siège",       Latitude: 48.8566, Longitude: 2.3522,  Type: "Un formateur",         Description: "Bureau principal" },
-      { Nom: "Lyon – Agence",       Latitude: 45.7640, Longitude: 4.8357,  Type: "Plusieurs formateurs", Description: "Agence régionale" },
-      { Nom: "Marseille – Dépôt",   Latitude: 43.2965, Longitude: 5.3698,  Type: "Aucun formateur",      Description: "Entrepôt logistique" },
-      { Nom: "Bordeaux",            Latitude: 44.8378, Longitude: -0.5792, Type: "Un formateur",         Description: "Antenne commerciale" },
-      { Nom: "Lille – Nord",        Latitude: 50.6292, Longitude: 3.0573,  Type: "Un candidat",          Description: "Point relais" },
-      { Nom: "Strasbourg",          Latitude: 48.5734, Longitude: 7.7521,  Type: "Aucun formateur",      Description: "Bureau Est" },
-      { Nom: "Toulouse",            Latitude: 43.6047, Longitude: 1.4442,  Type: "Un formateur",         Description: "Centre technique" },
-      { Nom: "Nantes",              Latitude: 47.2184, Longitude: -1.5536, Type: "Plusieurs formateurs", Description: "Agence Ouest" },
-      { Nom: "Rennes",              Latitude: 48.1173, Longitude: -1.6778, Type: "Aucun formateur",      Description: "Point de contact" },
-      { Nom: "Montpellier",         Latitude: 43.6108, Longitude: 3.8767,  Type: "Un formateur",         Description: "Bureau Sud" },
-      { Nom: "Grenoble",            Latitude: 45.1885, Longitude: 5.7245,  Type: "Un candidat",          Description: "Labo R&D" },
-      { Nom: "Clermont-Ferrand",    Latitude: 45.7772, Longitude: 3.0870,  Type: "Plusieurs formateurs", Description: "Centre support" },
+      { Nom: "Paris – Siège",       Latitude: 48.8566, Longitude: 2.3522,  Type: "Un formateur" },
+      { Nom: "Lyon – Agence",       Latitude: 45.7640, Longitude: 4.8357,  Type: "Plusieurs formateurs" },
+      { Nom: "Marseille – Dépôt",   Latitude: 43.2965, Longitude: 5.3698,  Type: "Aucun formateur" },
+      { Nom: "Bordeaux",            Latitude: 44.8378, Longitude: -0.5792, Type: "Un formateur" },
+      { Nom: "Lille – Nord",        Latitude: 50.6292, Longitude: 3.0573,  Type: "Un candidat" },
+      { Nom: "Strasbourg",          Latitude: 48.5734, Longitude: 7.7521,  Type: "Aucun formateur" },
+      { Nom: "Toulouse",            Latitude: 43.6047, Longitude: 1.4442,  Type: "Un formateur" },
+      { Nom: "Nantes",              Latitude: 47.2184, Longitude: -1.5536, Type: "Plusieurs formateurs" },
+      { Nom: "Rennes",              Latitude: 48.1173, Longitude: -1.6778, Type: "Aucun formateur" },
+      { Nom: "Montpellier",         Latitude: 43.6108, Longitude: 3.8767,  Type: "Un formateur" },
+      { Nom: "Grenoble",            Latitude: 45.1885, Longitude: 5.7245,  Type: "Un candidat" },
+      { Nom: "Clermont-Ferrand",    Latitude: 45.7772, Longitude: 3.0870,  Type: "Plusieurs formateurs" },
     ];
 
-    // ─── Grist ───
+    // ─── Intégration Grist ───
     function processRecords(records) {
       lastRecords = records;
       detectTypes(records);
@@ -631,27 +620,67 @@
 
     function tryGristInit() {
       if (typeof grist === 'undefined') { showDemo(); return; }
+
       try {
         grist.ready({
           requiredAccess: 'read table',
           columns: [
-            { name: 'Latitude', type: 'Numeric' },
-            { name: 'Longitude', type: 'Numeric' },
-            { name: 'Type', type: 'Text' },
-            { name: 'Nom', type: 'Text', optional: true },
-            { name: 'Description', type: 'Text', optional: true },
+            { name: 'Latitude', type: 'Numeric', title: 'Latitude' },
+            { name: 'Longitude', type: 'Numeric', title: 'Longitude' },
+            { name: 'Type', type: 'Any', title: 'Type' },
+            { name: 'Nom', type: 'Any', title: 'Nom (facultatif)', optional: true },
           ]
         });
-        grist.onRecords(function(records) {
-          if (records && records.length > 0) processRecords(records);
-          else showDemo();
+
+        // Récupérer le mapping de colonnes configuré par l'utilisateur
+        grist.onOptions(function(options) {
+          // options n'est pas toujours utilisé pour le column mapping
         });
-      } catch (e) { showDemo(); }
+
+        grist.on('message', function(msg) {
+          // Debug : afficher les messages Grist dans la console
+          console.log('Grist message:', msg);
+        });
+
+        // Le column mapping est disponible via grist.mapColumnNames
+        grist.onRecords(function(records, mappings) {
+          console.log('Received records:', records?.length, 'mappings:', mappings);
+
+          if (mappings) {
+            // mappings = { Latitude: "real_col_name", Longitude: "real_col_name", ... }
+            columnMapping = mappings;
+            console.log('Column mapping:', columnMapping);
+          }
+
+          // Essayer de mapper les colonnes avec grist.mapColumnNames
+          if (records && records.length > 0) {
+            let mapped = records;
+            try {
+              mapped = grist.mapColumnNames(records);
+              // Si mapColumnNames réussit, les records ont directement nos noms logiques
+              if (mapped && mapped.length > 0 && mapped[0] !== null) {
+                console.log('mapColumnNames succeeded, sample:', mapped[0]);
+                processRecords(mapped);
+                return;
+              }
+            } catch(e) {
+              console.log('mapColumnNames not available or failed, using raw records');
+            }
+
+            // Fallback : utiliser les records bruts avec le mapping
+            processRecords(records);
+          } else {
+            showDemo();
+          }
+        });
+
+      } catch (e) {
+        console.warn('Grist API error:', e);
+        showDemo();
+      }
     }
 
-    function showDemo() {
-      processRecords(DEMO_DATA);
-    }
+    function showDemo() { processRecords(DEMO_DATA); }
 
     // ─── Init ───
     tryGristInit();
