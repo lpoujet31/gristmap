@@ -108,17 +108,24 @@
       padding: 10px 12px;
       border-radius: 10px;
       border: 1px solid rgba(255,255,255,0.08);
-      background: rgba(255,255,255,0.04);
+      background: #1b1f29;
       color: #f4f4f5;
       font: inherit;
       outline: none;
+      color-scheme: dark;
       transition: border-color 0.15s, background 0.15s;
     }
 
     .settings-select:hover,
     .settings-select:focus {
       border-color: rgba(255,255,255,0.18);
-      background: rgba(255,255,255,0.06);
+      background: #232938;
+    }
+
+    .settings-select option,
+    .settings-select optgroup {
+      background: #161a22;
+      color: #f4f4f5;
     }
 
     .cat-row {
@@ -367,10 +374,9 @@
     const BASEMAP_STORAGE_KEY = 'grist_map_basemap_v1';
     const BASEMAPS = [
       { id: 'dark_all', label: 'Sombre', url: 'https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png' },
-      { id: 'light_all', label: 'Clair', url: 'https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png' },
-      { id: 'light_nolabels', label: 'Clair sans libelles', url: 'https://{s}.basemaps.cartocdn.com/light_nolabels/{z}/{x}/{y}{r}.png' },
-      { id: 'voyager', label: 'Voyager', url: 'https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png' },
-      { id: 'voyager_nolabels', label: 'Voyager sans libelles', url: 'https://{s}.basemaps.cartocdn.com/rastertiles/voyager_nolabels/{z}/{x}/{y}{r}.png' }
+      { id: 'dark_nolabels', label: 'Sombre sans libelles', url: 'https://{s}.basemaps.cartocdn.com/dark_nolabels/{z}/{x}/{y}{r}.png' },
+      { id: 'voyager', label: 'Classique', url: 'https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png' },
+      { id: 'voyager_nolabels', label: 'Classique sans libelles', url: 'https://{s}.basemaps.cartocdn.com/rastertiles/voyager_nolabels/{z}/{x}/{y}{r}.png' }
     ];
 
     // ─── État ───
@@ -782,4 +788,3 @@
   </script>
 </body>
 </html>
-
