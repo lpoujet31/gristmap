@@ -372,6 +372,8 @@
     ];
 
     const UNASSIGNED_COLOR = { id: 'none', fill: '#6b7280', glow: 'rgba(107,114,128,0.25)', bg: 'rgba(107,114,128,0.1)', text: '#9ca3af' };
+    const IS_GRIST_WIDGET = typeof grist !== 'undefined';
+    const DEFAULT_BASEMAP_ID = 'dark_all';
     const BASEMAP_STORAGE_KEY = 'grist_map_basemap_v1';
     const BASEMAPS = [
       { id: 'dark_all', label: 'Sombre', url: 'https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png' },
@@ -388,6 +390,7 @@
     let columnMapping = {};             // mapping Grist : { Latitude: "real_col_name", ... }
     let openPicker = null;
     let currentBasemapId = loadBasemapId();
+    let widgetOptionsLoaded = !IS_GRIST_WIDGET;
 
     function loadMapping() {
       try { const s = localStorage.getItem(STORAGE_KEY); if (s) return JSON.parse(s); } catch(e) {}
@@ -395,6 +398,7 @@
     }
     function saveMapping() {
       try { localStorage.setItem(STORAGE_KEY, JSON.stringify(colorMapping)); } catch(e) {}
+      persistWidgetOptions();
     }
 
     function loadBasemapId() {
@@ -402,11 +406,31 @@
         const basemapId = localStorage.getItem(BASEMAP_STORAGE_KEY);
         if (BASEMAPS.some(b => b.id === basemapId)) return basemapId;
       } catch(e) {}
-      return 'dark_all';
+      return DEFAULT_BASEMAP_ID;
     }
 
     function saveBasemapId() {
       try { localStorage.setItem(BASEMAP_STORAGE_KEY, currentBasemapId); } catch(e) {}
+      persistWidgetOptions();
+    }
+
+    function persistWidgetOptions() {
+      if (!IS_GRIST_WIDGET || !widgetOptionsLoaded || typeof grist.setOption !== 'function') return;
+      grist.setOption('colorMapping', colorMapping).catch((e) => console.warn('Unable to save colorMapping option:', e));
+      grist.setOption('basemapId', currentBasemapId).catch((e) => console.warn('Unable to save basemapId option:', e));
+    }
+
+    function applyWidgetOptions(options) {
+      const nextColorMapping = (options && typeof options.colorMapping === 'object' && !Array.isArray(options.colorMapping))
+        ? options.colorMapping
+        : {};
+      const nextBasemapId = BASEMAPS.some(b => b.id === options?.basemapId)
+        ? options.basemapId
+        : DEFAULT_BASEMAP_ID;
+
+      colorMapping = { ...nextColorMapping };
+      currentBasemapId = nextBasemapId;
+      applyBasemap();
     }
 
     function getColorById(id) { return PASTEL_PALETTE.find(c => c.id === id) || UNASSIGNED_COLOR; }
@@ -416,13 +440,15 @@
       const usedColors = new Set(Object.values(colorMapping));
       const available = PASTEL_PALETTE.filter(c => !usedColors.has(c.id));
       let idx = 0;
+      let changed = false;
       detectedTypes.forEach(dt => {
         if (!colorMapping[dt.name] && idx < available.length) {
           colorMapping[dt.name] = available[idx].id;
           idx++;
+          changed = true;
         }
       });
-      saveMapping();
+      if (changed) saveMapping();
     }
 
     // ─── Helpers pour lire les champs d'un record Grist ───
@@ -557,10 +583,6 @@
         .sort((a, b) => b[1] - a[1])
         .map(([name, count]) => ({ name, count }));
 
-      // Nettoyer les mappings obsolètes
-      const validNames = new Set(detectedTypes.map(d => d.name));
-      Object.keys(colorMapping).forEach(k => { if (!validNames.has(k)) delete colorMapping[k]; });
-
       autoAssign();
     }
 
@@ -652,6 +674,18 @@
     const settingsPanel = document.getElementById('settingsPanel');
     const basemapSelect = document.getElementById('basemapSelect');
 
+    function openSettingsPanel() {
+      settingsPanel.classList.add('open');
+      closePicker();
+      renderBasemapSelect();
+      renderSettingsRows();
+    }
+
+    function closeSettingsPanel() {
+      settingsPanel.classList.remove('open');
+      closePicker();
+    }
+
     function renderBasemapSelect() {
       if (!basemapSelect) return;
       if (!basemapSelect.dataset.ready) {
@@ -663,10 +697,10 @@
 
     settingsToggle.addEventListener('click', (e) => {
       e.stopPropagation();
-      settingsPanel.classList.toggle('open');
-      closePicker();
+      if (settingsPanel.classList.contains('open')) closeSettingsPanel();
+      else openSettingsPanel();
     });
-    map.on('click', () => { settingsPanel.classList.remove('open'); closePicker(); });
+    map.on('click', () => { closeSettingsPanel(); });
 
     basemapSelect.addEventListener('change', (e) => {
       currentBasemapId = e.target.value;
@@ -739,6 +773,9 @@
       try {
         grist.ready({
           requiredAccess: 'read table',
+          onEditOptions: function() {
+            openSettingsPanel();
+          },
           columns: [
             { name: 'Latitude', type: 'Numeric', title: 'Latitude' },
             { name: 'Longitude', type: 'Numeric', title: 'Longitude' },
@@ -749,7 +786,10 @@
 
         // Récupérer le mapping de colonnes configuré par l'utilisateur
         grist.onOptions(function(options) {
-          // options n'est pas toujours utilisé pour le column mapping
+          widgetOptionsLoaded = true;
+          applyWidgetOptions(options || {});
+          if (lastRecords.length > 0) detectTypes(lastRecords);
+          refreshAll();
         });
 
         grist.on('message', function(msg) {
