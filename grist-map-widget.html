@@ -331,6 +331,9 @@
       margin: 12px 16px !important;
       font-size: 13px !important;
       line-height: 1.6 !important;
+      width: var(--popup-content-width, 248px);
+      max-height: var(--popup-max-height, 220px);
+      overflow-y: auto;
     }
 
     .leaflet-popup-content strong { color: #fff; font-weight: 600; }
@@ -371,6 +374,13 @@
     </div>
 
     <div class="settings-section">
+      <h3>Fenetre info</h3>
+      <div class="subtitle">Choisissez une taille de popup adaptee a la quantite d'information a afficher.</div>
+      <label class="settings-label" for="popupSizeSelect">Taille</label>
+      <select class="settings-select" id="popupSizeSelect"></select>
+    </div>
+
+    <div class="settings-section">
     <h3>Catégories détectées</h3>
     <div class="subtitle">Cliquez sur le rond de couleur pour changer la couleur associée à chaque valeur.</div>
     <div id="categoriesList"></div>
@@ -396,12 +406,19 @@
     const UNASSIGNED_COLOR = { id: 'none', fill: '#6b7280', glow: 'rgba(107,114,128,0.25)', bg: 'rgba(107,114,128,0.1)', text: '#9ca3af' };
     const IS_GRIST_WIDGET = typeof grist !== 'undefined';
     const DEFAULT_BASEMAP_ID = 'dark_all';
+    const DEFAULT_POPUP_SIZE_ID = 'standard';
     const BASEMAP_STORAGE_KEY = 'grist_map_basemap_v1';
+    const POPUP_SIZE_STORAGE_KEY = 'grist_map_popup_size_v1';
     const BASEMAPS = [
       { id: 'dark_all', label: 'Sombre', url: 'https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png' },
       { id: 'dark_nolabels', label: 'Sombre sans libelles', url: 'https://{s}.basemaps.cartocdn.com/dark_nolabels/{z}/{x}/{y}{r}.png' },
       { id: 'voyager', label: 'Classique', url: 'https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png' },
       { id: 'voyager_nolabels', label: 'Classique sans libelles', url: 'https://{s}.basemaps.cartocdn.com/rastertiles/voyager_nolabels/{z}/{x}/{y}{r}.png' }
+    ];
+    const POPUP_SIZES = [
+      { id: 'compact', label: 'Compacte', width: 220, maxWidth: 252, maxHeight: 160 },
+      { id: 'standard', label: 'Standard', width: 248, maxWidth: 280, maxHeight: 220 },
+      { id: 'large', label: 'Large', width: 320, maxWidth: 352, maxHeight: 320 }
     ];
 
     // ─── État ───
@@ -413,6 +430,7 @@
     let columnMapping = {};             // mapping Grist : { Latitude: "real_col_name", ... }
     let openPicker = null;
     let currentBasemapId = loadBasemapId();
+    let currentPopupSizeId = loadPopupSizeId();
     let widgetOptionsLoaded = !IS_GRIST_WIDGET;
 
     function loadMapping() {
@@ -437,10 +455,24 @@
       persistWidgetOptions();
     }
 
+    function loadPopupSizeId() {
+      try {
+        const popupSizeId = localStorage.getItem(POPUP_SIZE_STORAGE_KEY);
+        if (POPUP_SIZES.some(s => s.id === popupSizeId)) return popupSizeId;
+      } catch(e) {}
+      return DEFAULT_POPUP_SIZE_ID;
+    }
+
+    function savePopupSizeId() {
+      try { localStorage.setItem(POPUP_SIZE_STORAGE_KEY, currentPopupSizeId); } catch(e) {}
+      persistWidgetOptions();
+    }
+
     function persistWidgetOptions() {
       if (!IS_GRIST_WIDGET || !widgetOptionsLoaded || typeof grist.setOption !== 'function') return;
       grist.setOption('colorMapping', colorMapping).catch((e) => console.warn('Unable to save colorMapping option:', e));
       grist.setOption('basemapId', currentBasemapId).catch((e) => console.warn('Unable to save basemapId option:', e));
+      grist.setOption('popupSizeId', currentPopupSizeId).catch((e) => console.warn('Unable to save popupSizeId option:', e));
     }
 
     function applyWidgetOptions(options) {
@@ -450,15 +482,27 @@
       const nextBasemapId = BASEMAPS.some(b => b.id === options?.basemapId)
         ? options.basemapId
         : DEFAULT_BASEMAP_ID;
+      const nextPopupSizeId = POPUP_SIZES.some(s => s.id === options?.popupSizeId)
+        ? options.popupSizeId
+        : DEFAULT_POPUP_SIZE_ID;
 
       colorMapping = { ...nextColorMapping };
       currentBasemapId = nextBasemapId;
+      currentPopupSizeId = nextPopupSizeId;
+      applyPopupSizeStyles();
       applyBasemap();
     }
 
     function getColorById(id) { return PASTEL_PALETTE.find(c => c.id === id) || UNASSIGNED_COLOR; }
     function getColorForType(typeName) { return getColorById(colorMapping[typeName] || 'none'); }
     function isTypeVisible(typeName) { return !hiddenTypes.has(typeName); }
+    function getPopupSizeConfig(id = currentPopupSizeId) { return POPUP_SIZES.find(s => s.id === id) || POPUP_SIZES[1]; }
+
+    function applyPopupSizeStyles() {
+      const popupSize = getPopupSizeConfig();
+      document.documentElement.style.setProperty('--popup-content-width', popupSize.width + 'px');
+      document.documentElement.style.setProperty('--popup-max-height', popupSize.maxHeight + 'px');
+    }
 
     function syncHiddenTypes() {
       const currentTypeNames = new Set(detectedTypes.map(dt => dt.name));
@@ -586,9 +630,11 @@
           const item = document.createElement('div');
           item.className = `legend-item${isTypeVisible(dt.name) ? '' : ' is-hidden'}`;
           item.tabIndex = 0;
+          item.setAttribute('role', 'button');
+          item.setAttribute('aria-pressed', String(isTypeVisible(dt.name)));
           item.title = isTypeVisible(dt.name)
-            ? `Cliquer pour masquer « ${dt.name} »`
-            : `Cliquer pour afficher « ${dt.name} »`;
+            ? `Cliquer pour masquer "${dt.name}"`
+            : `Cliquer pour afficher "${dt.name}"`;
 
           const dot = document.createElement('div');
           dot.className = 'legend-dot';
@@ -658,6 +704,7 @@
     // ─── Rendu points ───
     function renderPoints(records, { fitBounds = true } = {}) {
       markersLayer.clearLayers();
+      const popupSize = getPopupSizeConfig();
       const valid = [];
       const visible = [];
       records.forEach(r => {
@@ -669,7 +716,7 @@
         valid.push(r);
         if (!isTypeVisible(type)) return;
         L.marker([lat, lng], { icon: createIcon(type) })
-          .bindPopup(popupHTML(r), { maxWidth: 280 })
+          .bindPopup(popupHTML(r), { maxWidth: popupSize.maxWidth })
           .addTo(markersLayer);
         visible.push(r);
       });
@@ -683,6 +730,7 @@
 
     function refreshAll() {
       renderBasemapSelect();
+      renderPopupSizeSelect();
       renderLegend();
       renderSettingsRows();
       if (lastRecords.length > 0) renderPoints(lastRecords);
@@ -749,11 +797,13 @@
     const settingsToggle = document.getElementById('settingsToggle');
     const settingsPanel = document.getElementById('settingsPanel');
     const basemapSelect = document.getElementById('basemapSelect');
+    const popupSizeSelect = document.getElementById('popupSizeSelect');
 
     function openSettingsPanel() {
       settingsPanel.classList.add('open');
       closePicker();
       renderBasemapSelect();
+      renderPopupSizeSelect();
       renderSettingsRows();
     }
 
@@ -771,6 +821,15 @@
       basemapSelect.value = currentBasemapId;
     }
 
+    function renderPopupSizeSelect() {
+      if (!popupSizeSelect) return;
+      if (!popupSizeSelect.dataset.ready) {
+        popupSizeSelect.innerHTML = POPUP_SIZES.map(s => `<option value="${s.id}">${s.label}</option>`).join('');
+        popupSizeSelect.dataset.ready = 'true';
+      }
+      popupSizeSelect.value = currentPopupSizeId;
+    }
+
     settingsToggle.addEventListener('click', (e) => {
       e.stopPropagation();
       if (settingsPanel.classList.contains('open')) closeSettingsPanel();
@@ -782,6 +841,13 @@
       currentBasemapId = e.target.value;
       saveBasemapId();
       applyBasemap();
+    });
+
+    popupSizeSelect.addEventListener('change', (e) => {
+      currentPopupSizeId = e.target.value;
+      applyPopupSizeStyles();
+      savePopupSizeId();
+      if (lastRecords.length > 0) renderPoints(lastRecords, { fitBounds: false });
     });
 
     function renderSettingsRows() {
@@ -842,6 +908,8 @@
       detectTypes(records);
       refreshAll();
     }
+
+    applyPopupSizeStyles();
 
     function tryGristInit() {
       if (typeof grist === 'undefined') { showDemo(); return; }
