@@ -254,6 +254,28 @@
       display: flex;
       align-items: center;
       gap: 8px;
+      padding: 6px 10px;
+      border-radius: 10px;
+      cursor: pointer;
+      user-select: none;
+      transition: background 0.15s ease, opacity 0.15s ease, transform 0.15s ease;
+    }
+
+    .legend-item:hover {
+      background: rgba(255,255,255,0.06);
+    }
+
+    .legend-item:focus-visible {
+      outline: 2px solid rgba(255,255,255,0.32);
+      outline-offset: 2px;
+    }
+
+    .legend-item.is-hidden {
+      opacity: 0.45;
+    }
+
+    .legend-item.is-hidden .legend-dot {
+      box-shadow: none !important;
     }
 
     .legend-dot {
@@ -386,6 +408,7 @@
     const STORAGE_KEY = 'grist_map_color_mapping_v4';
     let colorMapping = loadMapping();   // { "valeur_type": "color_id" }
     let detectedTypes = [];             // [ { name, count } ]
+    let hiddenTypes = new Set();
     let lastRecords = [];
     let columnMapping = {};             // mapping Grist : { Latitude: "real_col_name", ... }
     let openPicker = null;
@@ -435,6 +458,12 @@
 
     function getColorById(id) { return PASTEL_PALETTE.find(c => c.id === id) || UNASSIGNED_COLOR; }
     function getColorForType(typeName) { return getColorById(colorMapping[typeName] || 'none'); }
+    function isTypeVisible(typeName) { return !hiddenTypes.has(typeName); }
+
+    function syncHiddenTypes() {
+      const currentTypeNames = new Set(detectedTypes.map(dt => dt.name));
+      hiddenTypes = new Set([...hiddenTypes].filter(typeName => currentTypeNames.has(typeName)));
+    }
 
     function autoAssign() {
       const usedColors = new Set(Object.values(colorMapping));
@@ -547,26 +576,65 @@
 
     // ─── Légende ───
     function renderLegend() {
-      document.getElementById('legend').innerHTML = detectedTypes
+      const legendEl = document.getElementById('legend');
+      legendEl.innerHTML = '';
+
+      detectedTypes
         .filter(dt => colorMapping[dt.name])
-        .map(dt => {
+        .forEach(dt => {
           const c = getColorForType(dt.name);
-          return `<div class="legend-item">
-            <div class="legend-dot" style="background:${c.fill};box-shadow:0 0 8px ${c.glow}"></div>
-            <span>${dt.name}</span>
-          </div>`;
-        }).join('');
+          const item = document.createElement('div');
+          item.className = `legend-item${isTypeVisible(dt.name) ? '' : ' is-hidden'}`;
+          item.tabIndex = 0;
+          item.title = isTypeVisible(dt.name)
+            ? `Cliquer pour masquer « ${dt.name} »`
+            : `Cliquer pour afficher « ${dt.name} »`;
+
+          const dot = document.createElement('div');
+          dot.className = 'legend-dot';
+          dot.style.background = c.fill;
+          dot.style.boxShadow = `0 0 8px ${c.glow}`;
+
+          const label = document.createElement('span');
+          label.textContent = dt.name;
+
+          const toggleVisibility = () => {
+            if (hiddenTypes.has(dt.name)) hiddenTypes.delete(dt.name);
+            else hiddenTypes.add(dt.name);
+            renderLegend();
+            renderPoints(lastRecords, { fitBounds: false });
+          };
+
+          item.addEventListener('click', toggleVisibility);
+          item.addEventListener('keydown', (e) => {
+            if (e.key === 'Enter' || e.key === ' ') {
+              e.preventDefault();
+              toggleVisibility();
+            }
+          });
+
+          item.appendChild(dot);
+          item.appendChild(label);
+          legendEl.appendChild(item);
+        });
     }
 
     // ─── Stats ───
-    function updateStats() {
-      document.getElementById('stats-bar').innerHTML = detectedTypes
-        .filter(dt => dt.count > 0)
-        .map(dt => {
-          const c = getColorForType(dt.name);
+    function updateStats(records) {
+      const counts = {};
+      records.forEach(r => {
+        const type = getType(r);
+        if (!type) return;
+        counts[type] = (counts[type] || 0) + 1;
+      });
+
+      document.getElementById('stats-bar').innerHTML = Object.entries(counts)
+        .sort((a, b) => b[1] - a[1])
+        .map(([typeName, count]) => {
+          const c = getColorForType(typeName);
           return `<div class="stat-chip">
             <div class="dot" style="background:${c.fill};box-shadow:0 0 6px ${c.glow}"></div>
-            ${dt.count}
+            ${count}
           </div>`;
         }).join('');
     }
@@ -584,25 +652,33 @@
         .map(([name, count]) => ({ name, count }));
 
       autoAssign();
+      syncHiddenTypes();
     }
 
     // ─── Rendu points ───
-    function renderPoints(records) {
+    function renderPoints(records, { fitBounds = true } = {}) {
       markersLayer.clearLayers();
       const valid = [];
+      const visible = [];
       records.forEach(r => {
         const lat = getLatitude(r);
         const lng = getLongitude(r);
         if (isNaN(lat) || isNaN(lng)) return;
         r._lat = lat; r._lng = lng;
         const type = getType(r);
+        valid.push(r);
+        if (!isTypeVisible(type)) return;
         L.marker([lat, lng], { icon: createIcon(type) })
           .bindPopup(popupHTML(r), { maxWidth: 280 })
           .addTo(markersLayer);
-        valid.push(r);
+        visible.push(r);
       });
-      if (valid.length > 0) map.fitBounds(L.latLngBounds(valid.map(r => [r._lat, r._lng])).pad(0.15));
-      updateStats();
+      if (fitBounds && visible.length > 0) {
+        map.fitBounds(L.latLngBounds(visible.map(r => [r._lat, r._lng])).pad(0.15));
+      } else if (fitBounds && valid.length > 0 && hiddenTypes.size === 0) {
+        map.fitBounds(L.latLngBounds(valid.map(r => [r._lat, r._lng])).pad(0.15));
+      }
+      updateStats(visible);
     }
 
     function refreshAll() {
