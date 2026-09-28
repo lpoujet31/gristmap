@@ -3,15 +3,15 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Grist Map Widget – Auto-détection catégories</title>
-  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+  <title>Grist – Carte OpenLayers</title>
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/ol@10.10.0/ol.css" />
   <style>
-    @import url('https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&display=swap');
+
 
     * { margin: 0; padding: 0; box-sizing: border-box; }
 
     body {
-      font-family: 'DM Sans', sans-serif;
+      font-family: system-ui, sans-serif;
       background: #0f1117;
       color: #e4e4e7;
       height: 100vh;
@@ -316,34 +316,25 @@
       border-radius: 50%;
     }
 
-    /* ─── Popups Leaflet ─── */
-    .leaflet-popup-content-wrapper {
-      background: rgba(15, 17, 23, 0.92) !important;
-      backdrop-filter: blur(16px);
-      border: 1px solid rgba(255,255,255,0.1) !important;
-      border-radius: 12px !important;
-      color: #e4e4e7 !important;
-      font-family: 'DM Sans', sans-serif !important;
-      box-shadow: 0 8px 32px rgba(0,0,0,0.5) !important;
-    }
-
-    .leaflet-popup-content {
-      margin: 12px 16px !important;
-      font-size: 13px !important;
-      line-height: 1.6 !important;
-      width: var(--popup-content-width, 248px);
-      max-height: var(--popup-max-height, 220px);
-      overflow-y: auto;
-    }
-
-    .leaflet-popup-content strong { color: #fff; font-weight: 600; }
-    .popup-label { white-space: pre-line; }
-
-    .leaflet-popup-tip {
-      background: rgba(15, 17, 23, 0.92) !important;
-      border: 1px solid rgba(255,255,255,0.1) !important;
-    }
-
+    .map-popup { position: relative; background: #151822; color: #e4e4e7;
+      border: 1px solid #454956; border-radius: 12px; padding: 24px 16px 14px;
+      box-shadow: 0 8px 32px #0008; }
+    #popup-content { font-size: 13px; line-height: 1.6; overflow-y: auto;
+      width: min(var(--popup-content-width, 248px), calc(100vw - 80px));
+      max-height: min(var(--popup-max-height, 220px), calc(100vh - 100px)); overflow-wrap: anywhere; }
+    #popup-close { position: absolute; right: 6px; top: 2px; color: white;
+      background: none; border: 0; font-size: 22px; cursor: pointer; }
+    .popup-label { white-space: pre-line; color: white; }
+    .ol-zoom { left: auto; right: 12px; top: 64px; }
+    .ol-attribution { max-width: calc(100% - 12px); }
+    #map { min-height: 0; }
+    #map.dark-basemap .osm-basemap { filter: invert(1) hue-rotate(180deg) brightness(.8) saturate(.55); }
+    .settings-panel { max-width: calc(100vw - 24px); }
+    .legend { max-width: calc(100vw - 48px); max-height: 28vh; overflow-y: auto; bottom: 34px; }
+    .stats-bar { max-width: calc(100vw - 76px); }
+    #status { position: absolute; bottom: 5px; left: 8px; z-index: 1001;
+      background: #151822; padding: 5px 9px; border-radius: 5px; font-size: 12px; max-width: 75%; }
+    #status:empty { display: none; }
     .popup-type-badge {
       display: inline-block;
       padding: 2px 10px;
@@ -362,20 +353,22 @@
 <body>
 
   <div id="map"></div>
+  <div id="popup" class="map-popup" hidden><button id="popup-close" aria-label="Fermer">×</button><div id="popup-content"></div></div>
+  <div id="status" role="status"></div>
 
   <button class="settings-toggle" id="settingsToggle" title="Configurer les catégories">⚙</button>
 
   <div class="settings-panel" id="settingsPanel">
     <div class="settings-section">
       <h3>Fond de carte</h3>
-      <div class="subtitle">Choisissez le rendu de fond appliquÃ© immÃ©diatement Ã  la carte.</div>
+      <div class="subtitle">Fond OpenStreetMap, avec libellés, sans clé API.</div>
       <label class="settings-label" for="basemapSelect">Rendu</label>
       <select class="settings-select" id="basemapSelect"></select>
     </div>
 
     <div class="settings-section">
-      <h3>Fenetre info</h3>
-      <div class="subtitle">Choisissez une taille de popup adaptee a la quantite d'information a afficher.</div>
+      <h3>Fenêtre info</h3>
+      <div class="subtitle">Choisissez la taille de la fenêtre d’information.</div>
       <label class="settings-label" for="popupSizeSelect">Taille</label>
       <select class="settings-select" id="popupSizeSelect"></select>
     </div>
@@ -390,7 +383,7 @@
   <div class="legend" id="legend"></div>
   <div class="stats-bar" id="stats-bar"></div>
 
-  <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/ol@10.10.0/dist/ol.js"></script>
   <script src="https://docs.getgrist.com/grist-plugin-api.js"></script>
 
   <script>
@@ -404,16 +397,14 @@
     ];
 
     const UNASSIGNED_COLOR = { id: 'none', fill: '#6b7280', glow: 'rgba(107,114,128,0.25)', bg: 'rgba(107,114,128,0.1)', text: '#9ca3af' };
-    const IS_GRIST_WIDGET = typeof grist !== 'undefined';
-    const DEFAULT_BASEMAP_ID = 'dark_all';
+    const IS_GRIST_WIDGET = window.parent !== window;
+    const DEFAULT_BASEMAP_ID = 'osm';
     const DEFAULT_POPUP_SIZE_ID = 'standard';
     const BASEMAP_STORAGE_KEY = 'grist_map_basemap_v1';
     const POPUP_SIZE_STORAGE_KEY = 'grist_map_popup_size_v1';
     const BASEMAPS = [
-      { id: 'dark_all', label: 'Sombre', url: 'https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png' },
-      { id: 'dark_nolabels', label: 'Sombre sans libelles', url: 'https://{s}.basemaps.cartocdn.com/dark_nolabels/{z}/{x}/{y}{r}.png' },
-      { id: 'voyager', label: 'Classique', url: 'https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png' },
-      { id: 'voyager_nolabels', label: 'Classique sans libelles', url: 'https://{s}.basemaps.cartocdn.com/rastertiles/voyager_nolabels/{z}/{x}/{y}{r}.png' }
+      { id: 'osm', label: 'OpenStreetMap — clair' },
+      { id: 'osm_dark', label: 'OpenStreetMap — sombre' }
     ];
     const POPUP_SIZES = [
       { id: 'compact', label: 'Compacte', width: 220, maxWidth: 252, maxHeight: 160 },
@@ -434,8 +425,8 @@
     let widgetOptionsLoaded = !IS_GRIST_WIDGET;
 
     function loadMapping() {
-      try { const s = localStorage.getItem(STORAGE_KEY); if (s) return JSON.parse(s); } catch(e) {}
-      return {};
+      try { const s = localStorage.getItem(STORAGE_KEY); if (s) return Object.assign(Object.create(null), JSON.parse(s)); } catch(e) {}
+      return Object.create(null);
     }
     function saveMapping() {
       try { localStorage.setItem(STORAGE_KEY, JSON.stringify(colorMapping)); } catch(e) {}
@@ -486,7 +477,7 @@
         ? options.popupSizeId
         : DEFAULT_POPUP_SIZE_ID;
 
-      colorMapping = { ...nextColorMapping };
+      colorMapping = Object.assign(Object.create(null), nextColorMapping);
       currentBasemapId = nextBasemapId;
       currentPopupSizeId = nextPopupSizeId;
       applyPopupSizeStyles();
@@ -533,6 +524,7 @@
 
     function getField(record, logicalName) {
       // Essayer le nom mappé par Grist
+      if (record[logicalName] !== undefined) return record[logicalName];
       const mappedCol = columnMapping[logicalName];
       if (mappedCol && record[mappedCol] !== undefined) return record[mappedCol];
       // Fallback : essayer le nom logique directement (mode démo)
@@ -542,12 +534,12 @@
 
     function getLatitude(record) {
       const v = getField(record, 'Latitude');
-      return (v !== undefined) ? parseFloat(v) : NaN;
+      return (v === null || v === undefined || String(v).trim() === '') ? NaN : Number(String(v).trim().replace(',', '.'));
     }
 
     function getLongitude(record) {
       const v = getField(record, 'Longitude');
-      return (v !== undefined) ? parseFloat(v) : NaN;
+      return (v === null || v === undefined || String(v).trim() === '') ? NaN : Number(String(v).trim().replace(',', '.'));
     }
 
     function getType(record) {
@@ -577,34 +569,54 @@
       return BASEMAPS.find(b => b.id === id) || BASEMAPS[0];
     }
 
-    // ─── Carte Leaflet ───
-    const map = L.map('map', { zoomControl: false, attributionControl: true }).setView([46.8, 2.5], 6);
-    L.control.zoom({ position: 'topright' }).addTo(map);
-    let basemapLayer = null;
-
-    function applyBasemap() {
-      const basemap = getBasemapConfig(currentBasemapId);
-      if (basemapLayer) map.removeLayer(basemapLayer);
-      basemapLayer = L.tileLayer(basemap.url, {
-        attribution: '&copy; OSM &copy; CARTO',
-        subdomains: 'abcd',
-        maxZoom: 19
-      }).addTo(map);
+    // OpenLayers : fond raster OSM et points vectoriels séparés.
+    function setStatus(message) { document.getElementById('status').textContent = message; }
+    if (typeof ol === 'undefined') {
+      setStatus('OpenLayers ne se charge pas. Vérifiez l’accès à cdn.jsdelivr.net.');
+      throw new Error('OpenLayers indisponible');
     }
-
+    const osmSource = new ol.source.OSM();
+    const basemapLayer = new ol.layer.Tile({ source: osmSource, className: 'osm-basemap' });
+    const markersSource = new ol.source.Vector();
+    const markersLayer = new ol.layer.Vector({ source: markersSource });
+    const popupElement = document.getElementById('popup');
+    const popup = new ol.Overlay({ element: popupElement, positioning: 'bottom-center',
+      offset: [0, -18], autoPan: { animation: { duration: 200 } } });
+    const map = new ol.Map({ target: 'map', layers: [basemapLayer, markersLayer],
+      overlays: [popup], view: new ol.View({ center: ol.proj.fromLonLat([2.5, 46.8]), zoom: 6, maxZoom: 19 }) });
+    function closePopup() { popup.setPosition(undefined); popupElement.hidden = true; }
+    document.getElementById('popup-close').onclick = closePopup;
+    let tileError = false;
+    osmSource.on('tileloaderror', () => {
+      tileError = true;
+      setStatus('Fond de carte indisponible : vérifiez l’accès à tile.openstreetmap.org.');
+    });
+    osmSource.on('tileloadend', () => { if (tileError) { tileError = false; setStatus(''); } });
+    map.on('singleclick', event => {
+      closeSettingsPanel();
+      const feature = map.forEachFeatureAtPixel(event.pixel, f => f,
+        { layerFilter: layer => layer === markersLayer, hitTolerance: 5 });
+      if (!feature) { closePopup(); return; }
+      document.getElementById('popup-content').innerHTML = popupHTML(feature.get('record'));
+      popupElement.hidden = false;
+      popup.setPosition(feature.getGeometry().getCoordinates());
+    });
+    map.on('pointermove', event => {
+      if (!event.dragging) map.getTargetElement().style.cursor =
+        map.hasFeatureAtPixel(event.pixel, { layerFilter: layer => layer === markersLayer }) ? 'pointer' : '';
+    });
+    new ResizeObserver(() => map.updateSize()).observe(document.getElementById('map'));
+    function applyBasemap() {
+      document.getElementById('map').classList.toggle('dark-basemap', currentBasemapId === 'osm_dark');
+    }
     applyBasemap();
-
-    let markersLayer = L.layerGroup().addTo(map);
-
     function createIcon(typeName) {
       const c = getColorForType(typeName);
-      return L.divIcon({
-        html: `<svg width="28" height="28" viewBox="0 0 28 28" xmlns="http://www.w3.org/2000/svg">
-          <circle cx="14" cy="14" r="12" fill="${c.fill}" stroke="rgba(255,255,255,0.85)" stroke-width="2.5" filter="drop-shadow(0 0 6px ${c.glow})"/>
-          <circle cx="14" cy="14" r="5" fill="rgba(255,255,255,0.8)"/>
-        </svg>`,
-        className: '', iconSize: [28, 28], iconAnchor: [14, 14], popupAnchor: [0, -16]
-      });
+      return [new ol.style.Style({ image: new ol.style.Circle({ radius: 12,
+        fill: new ol.style.Fill({ color: c.fill }),
+        stroke: new ol.style.Stroke({ color: '#ffffffdd', width: 2.5 }) }) }),
+        new ol.style.Style({ image: new ol.style.Circle({ radius: 5,
+          fill: new ol.style.Fill({ color: '#ffffffcc' }) }) })];
     }
 
     function popupHTML(record) {
@@ -667,7 +679,7 @@
 
     // ─── Stats ───
     function updateStats(records) {
-      const counts = {};
+      const counts = Object.create(null);
       records.forEach(r => {
         const type = getType(r);
         if (!type) return;
@@ -687,7 +699,7 @@
 
     // ─── Détection des types uniques ───
     function detectTypes(records) {
-      const counts = {};
+      const counts = Object.create(null);
       records.forEach(r => {
         const t = getType(r);
         if (!t) return;
@@ -703,27 +715,22 @@
 
     // ─── Rendu points ───
     function renderPoints(records, { fitBounds = true } = {}) {
-      markersLayer.clearLayers();
-      const popupSize = getPopupSizeConfig();
-      const valid = [];
+      closePopup();
+      markersSource.clear();
       const visible = [];
+      const features = [];
       records.forEach(r => {
-        const lat = getLatitude(r);
-        const lng = getLongitude(r);
-        if (isNaN(lat) || isNaN(lng)) return;
-        r._lat = lat; r._lng = lng;
-        const type = getType(r);
-        valid.push(r);
+        const lat = getLatitude(r), lng = getLongitude(r), type = getType(r);
+        if (!Number.isFinite(lat) || !Number.isFinite(lng) || Math.abs(lat) > 85.05112878 || Math.abs(lng) > 180) return;
         if (!isTypeVisible(type)) return;
-        L.marker([lat, lng], { icon: createIcon(type) })
-          .bindPopup(popupHTML(r), { maxWidth: popupSize.maxWidth })
-          .addTo(markersLayer);
+        const feature = new ol.Feature({ geometry: new ol.geom.Point(ol.proj.fromLonLat([lng, lat])), record: r });
+        feature.setStyle(createIcon(type));
+        features.push(feature);
         visible.push(r);
       });
-      if (fitBounds && visible.length > 0) {
-        map.fitBounds(L.latLngBounds(visible.map(r => [r._lat, r._lng])).pad(0.15));
-      } else if (fitBounds && valid.length > 0 && hiddenTypes.size === 0) {
-        map.fitBounds(L.latLngBounds(valid.map(r => [r._lat, r._lng])).pad(0.15));
+      markersSource.addFeatures(features);
+      if (fitBounds && features.length) {
+        map.getView().fit(markersSource.getExtent(), { padding: [70, 50, 100, 50], maxZoom: 14 });
       }
       updateStats(visible);
     }
@@ -733,7 +740,7 @@
       renderPopupSizeSelect();
       renderLegend();
       renderSettingsRows();
-      if (lastRecords.length > 0) renderPoints(lastRecords);
+      renderPoints(lastRecords);
     }
 
     // ─── Color Picker ───
@@ -835,7 +842,7 @@
       if (settingsPanel.classList.contains('open')) closeSettingsPanel();
       else openSettingsPanel();
     });
-    map.on('click', () => { closeSettingsPanel(); });
+
 
     basemapSelect.addEventListener('change', (e) => {
       currentBasemapId = e.target.value;
@@ -912,7 +919,8 @@
     applyPopupSizeStyles();
 
     function tryGristInit() {
-      if (typeof grist === 'undefined') { showDemo(); return; }
+      if (!IS_GRIST_WIDGET) { showDemo(); setStatus('Démonstration — données fictives'); return; }
+      if (typeof grist === 'undefined') { setStatus('API Grist indisponible. Vérifiez l’accès à docs.getgrist.com.'); return; }
 
       try {
         grist.ready({
@@ -936,11 +944,6 @@
           refreshAll();
         });
 
-        grist.on('message', function(msg) {
-          // Debug : afficher les messages Grist dans la console
-          console.log('Grist message:', msg);
-        });
-
         // Le column mapping est disponible via grist.mapColumnNames
         grist.onRecords(function(records, mappings) {
           console.log('Received records:', records?.length, 'mappings:', mappings);
@@ -958,7 +961,8 @@
               mapped = grist.mapColumnNames(records);
               // Si mapColumnNames réussit, les records ont directement nos noms logiques
               if (mapped && mapped.length > 0 && mapped[0] !== null) {
-                console.log('mapColumnNames succeeded, sample:', mapped[0]);
+
+                columnMapping = {};
                 processRecords(mapped);
                 return;
               }
@@ -969,13 +973,13 @@
             // Fallback : utiliser les records bruts avec le mapping
             processRecords(records);
           } else {
-            showDemo();
+            processRecords([]);
           }
         });
 
       } catch (e) {
         console.warn('Grist API error:', e);
-        showDemo();
+        setStatus('Connexion Grist impossible : ' + e.message);
       }
     }
 
